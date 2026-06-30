@@ -8,7 +8,7 @@ using JET
         Aqua.test_all(Hamersley)
     end
     @testset "Code linting (JET.jl)" begin
-        JET.test_package(Hamersley; target_defined_modules = true)
+        JET.test_package(Hamersley; target_modules=(Hamersley,))
     end
     # Write your tests here.
 end
