@@ -14,3 +14,7 @@ Hamersley is not currently in the Julia General Registry, so it can only be inst
 ## Contributing
 
 Contributors are welcome, ideally by raising an issue or making a pull request, but a direct email to nick[dot]collins-craft[at]murdoch[dot]edu[dot]au will work too if you're not comfortable with GitHub.
+
+## Why Hamersley?
+
+Much like its namesake [range](https://en.wikipedia.org/wiki/Hamersley_Range), Hamersley lies on top of a whole bunch of [Ferrite](https://ferrite-fem.github.io/Ferrite.jl/stable/).

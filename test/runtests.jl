@@ -10,5 +10,8 @@ using JET
     @testset "Code linting (JET.jl)" begin
         JET.test_package(Hamersley; target_modules=(Hamersley,))
     end
-    # Write your tests here.
+    include("core_tests.jl")
+    include("response_tests.jl")
+    include("boundary_condition_tests.jl")
+    include("audit_tests.jl")
 end
