@@ -1,24 +1,88 @@
+#=
+Hamersley: finite elements for higher-order and multiphysics solid mechanics, built on
+Ferrite.
+
+The package is organised in layers, each of which only uses the ones above it:
+
+- `core/`: the vocabulary (configurations, kinematic assumptions, quantity tags, traces);
+- `materials/`: the constitutive law interface and the material library;
+- `expressions/`: the dataflow graph of a formulation (fields, operators, kinematics,
+  pull-backs, constitutive bindings);
+- `formulation/`: weak terms, equations, boundary conditions, problems and the audit;
+- `discretisation/`: interpolations, grids, degrees of freedom and quadrature;
+- `state/` and `time/`: internal state and time integration;
+- `compile/`: the single step from a formulation to type-stable element kernels;
+- `assembly/` and `solvers/`: element kernels, global assembly and solution strategies;
+- `io/`: output;
+- `meshing/`: the `Meshing` submodule, the only place that loads Gmsh.
+
+The architecture is described in full in `docs/src/architecture.md`.
+=#
+
+
 module Hamersley
 
+using Ferrite: Ferrite, Lagrange
+using LinearAlgebra
+using SparseArrays
+using Tensors
+
+# The vocabulary: errors, configurations, kinematic assumptions, quantity tags and traces.
+include("core/errors.jl")
 include("core/configurations.jl")
-include("core/traces.jl")
-include("core/fields.jl")
-include("core/operators.jl")
+include("core/kinematic_assumptions.jl")
+include("core/field_shapes.jl")
 include("core/quantities.jl")
+include("core/traces.jl")
 
-include("responses/responses.jl")
-include("responses/stress.jl")
-include("responses/flux.jl")
-include("responses/storage.jl")
-include("responses/source.jl")
+# Constitutive laws only refer to quantity tags, so they come before the graph.
+include("materials/interface.jl")
+include("materials/placeholder.jl")
+include("materials/local_solve.jl")
+include("materials/library/isotropic_linear_elasticity.jl")
+include("materials/library/neo_hookean.jl")
 
-include("forms/weak_terms.jl")
-include("forms/boundary_conditions.jl")
-include("forms/equations.jl")
-include("forms/problems.jl")
-include("forms/audit.jl")
+# The dataflow graph of a formulation.
+include("expressions/fields.jl")
+include("expressions/nodes.jl")
+include("expressions/kinematics.jl")
+include("expressions/transforms.jl")
+include("expressions/constitutive.jl")
+include("expressions/traversal.jl")
 
-include("backends/ferrite.jl")
-include("prelude.jl")
+# Weak forms, problems and the audit.
+include("formulation/terms.jl")
+include("formulation/equations.jl")
+include("formulation/boundary_conditions.jl")
+include("formulation/templates.jl")
+include("formulation/problems.jl")
+include("formulation/trace_derivation.jl")
+include("formulation/audit.jl")
+
+# Discretisation.
+include("discretisation/interpolations.jl")
+include("discretisation/grids.jl")
+include("discretisation/dofs.jl")
+include("discretisation/quadrature.jl")
+
+# Internal state and time integration.
+include("state/quadrature_state.jl")
+include("time/integrators.jl")
+
+# Compilation, assembly and solution.
+include("compile/linearity.jl")
+include("compile/coupling.jl")
+include("compile/compile.jl")
+include("assembly/kernels.jl")
+include("assembly/assemble.jl")
+include("solvers/newton.jl")
+include("solvers/linear.jl")
+include("io/output.jl")
+
+# Meshing is a submodule, so that Gmsh is only ever loaded inside it.
+include("meshing/Meshing.jl")
+using .Meshing: read_mesh
+
+include("exports.jl")
 
 end
