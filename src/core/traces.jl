@@ -30,8 +30,8 @@ struct ValueTrace <: AbstractTrace end
 """
     NormalGradientTrace()
 
-The normal derivative of the field on the boundary, ``∂_N u = (∇_0 u) N``, which appears
-in second-gradient continua and is conjugate to the double force.
+The normal derivative of the field on the boundary, ``∂_{n_0} u = (∇_0 u) n_0``, which
+appears in second-gradient continua and is conjugate to the double force.
 """
 struct NormalGradientTrace <: AbstractTrace end
 
@@ -39,7 +39,7 @@ struct NormalGradientTrace <: AbstractTrace end
 """
     NormalComponentTrace()
 
-The normal component of a vector field on the boundary, ``q \\cdot N``, which is the
+The normal component of a vector field on the boundary, ``q \\cdot n_0``, which is the
 natural trace of an ``H(\\mathrm{div})`` field.
 """
 struct NormalComponentTrace <: AbstractTrace end
@@ -48,7 +48,7 @@ struct NormalComponentTrace <: AbstractTrace end
 """
     TangentialComponentTrace()
 
-The tangential component of a vector field on the boundary, ``q × N``, which is the
+The tangential component of a vector field on the boundary, ``q × n_0``, which is the
 natural trace of an ``H(\\mathrm{curl})`` field.
 """
 struct TangentialComponentTrace <: AbstractTrace end
@@ -83,7 +83,7 @@ conjugate_trace(::BoundaryPressure) = NormalComponentTrace()
     is_standard_trace(trace)
 
 Return `true` for the ordinary value trace, and `false` for the non-standard traces of
-higher-order and mixed formulations. Strict boundary checking in the audit insists that
+higher-order and mixed formulations. Strict boundary checking in the formulation verification insists that
 non-standard traces are dealt with explicitly.
 """
 is_standard_trace(::AbstractTrace) = false

@@ -3,7 +3,7 @@ Problems.
 
 A problem gathers the fields, the equations and the boundary conditions, together with
 the one declaration that everything else depends on: the kinematic assumption. It also
-records an optional user claim that the problem is linear, which the audit checks once
+records an optional user claim that the problem is linear, which the formulation verification checks once
 against the structure of the formulation.
 =#
 
@@ -12,7 +12,7 @@ against the structure of the formulation.
     Problem(; fields, equations = (), boundary_conditions = (), kinematics,
               linear = nothing, strict_boundaries = false, template = NoTemplate())
 
-A formulation, ready to be audited and (eventually) compiled against a mesh.
+A formulation, ready to be verified and (eventually) compiled against a mesh.
 
 # Fields
 - `fields::Fs`: a tuple of [`Field`](@ref)s. Their order is the order of the fields in
@@ -47,19 +47,19 @@ end
 
 function Problem(;
     fields::Tuple,
-    equations::Tuple = (),
-    boundary_conditions::Tuple = (),
-    kinematics::Union{AbstractKinematicAssumption,Nothing} = nothing,
-    linear::Union{Bool,Nothing} = nothing,
-    strict_boundaries::Bool = false,
-    template::AbstractFormulationTemplate = NoTemplate(),
+    equations::Tuple=(),
+    boundary_conditions::Tuple=(),
+    kinematics::Union{AbstractKinematicAssumption,Nothing}=nothing,
+    linear::Union{Bool,Nothing}=nothing,
+    strict_boundaries::Bool=false,
+    template::AbstractFormulationTemplate=NoTemplate(),
 )
     # The kinematic assumption is never guessed: it decides which pairings are valid.
     if kinematics === nothing
         throw(
             ArgumentError(
                 "a Problem must declare its kinematic assumption, please choose from: " *
-                "kinematics = SmallStrain(), kinematics = FiniteStrain(motion = :u)",
+                    "kinematics = SmallStrain(), kinematics = FiniteStrain(motion = :u)",
             ),
         )
     end
@@ -96,7 +96,8 @@ field_names(problem::Problem) = Symbol[field_name(field) for field in problem.fi
 
 Return the names of the equations of `problem`, in declaration order.
 """
-equation_names(problem::Problem) = Symbol[equation_name(eq) for eq in problem.equations]
+equation_names(problem::Problem) =
+    Symbol[equation_name(equation) for equation in problem.equations]
 
 
 """
@@ -114,6 +115,7 @@ Return every weak term of `problem`, paired with the equation it belongs to, as 
 of `(equation, term)` tuples.
 """
 function problem_terms(problem::Problem)
+    # We flatten the equations into one list, remembering which equation each term is in.
     pairs = Tuple{Equation,AbstractWeakTerm}[]
     for equation in problem.equations
         for term in equation_terms(equation)
@@ -132,11 +134,10 @@ Return the distinct [`Constitutive`](@ref) bindings used anywhere in `problem`.
 function problem_constitutive(problem::Problem)
     bindings = Constitutive[]
     for (_, term) in problem_terms(problem)
-        for node in (term_test(term), term_flux(term))
-            for binding in collect_constitutive(node)
-                if !any(existing -> existing === binding, bindings)
-                    push!(bindings, binding)
-                end
+        # A binding may feed several terms, so each one is only reported once.
+        for vertex in (term_test(term), term_flux(term))
+            for binding in collect_constitutive(vertex)
+                push_unique!(bindings, binding)
             end
         end
     end

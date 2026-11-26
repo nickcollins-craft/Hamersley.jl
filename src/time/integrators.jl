@@ -1,7 +1,7 @@
 #=
 Time integrators.
 
-A `Rate` node in a formulation is an ordinary input to the laws that consume it. What
+A `Rate` vertex in a formulation is an ordinary input to the laws that consume it. What
 relates the rate to the unknowns of the current step is the time integrator: nearly every
 implicit scheme writes ``\dot{x}_{n+1} = a \, x_{n+1} + (\text{history})``, and the factor
 ``a = ∂\dot{x}/∂x_{n+1}`` is all the linearisation needs from it. Keeping that factor here,
@@ -81,13 +81,14 @@ end
 
 function rate_factor(::BackwardEuler, order::Integer, Δt::Real)
     if order == 1
+        # ∂u̇/∂u = 1/Δt
         a = 1/Δt
         return a
     else
         throw(
             ArgumentError(
                 "BackwardEuler only defines first-order rates, please choose from: " *
-                "Newmark(beta = …, gamma = …) for second-order rates",
+                    "Newmark(beta = …, gamma = …) for second-order rates",
             ),
         )
     end

@@ -52,10 +52,21 @@ Assemble both the residual and the tangent.
 struct ResidualAndTangent <: AbstractAssemblyMode end
 
 
+"""
+    needs_residual(mode)
+
+Return `true` when the assembly mode `mode` asks for the residual.
+"""
 needs_residual(::ResidualOnly) = true
 needs_residual(::TangentOnly) = false
 needs_residual(::ResidualAndTangent) = true
 
+
+"""
+    needs_tangent(mode)
+
+Return `true` when the assembly mode `mode` asks for the tangent.
+"""
 needs_tangent(::ResidualOnly) = false
 needs_tangent(::TangentOnly) = true
 needs_tangent(::ResidualAndTangent) = true

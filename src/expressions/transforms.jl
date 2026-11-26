@@ -3,9 +3,9 @@ Pull-backs and push-forwards.
 
 Under finite strains a quantity measured per unit current volume or area must be pulled
 back before it can be integrated over the reference configuration, and a law written in
-spatial terms (isotropic Fourier conduction, ``q = -k ∇_x θ``) needs its inputs pushed
-forward. Both are nodes in the graph, because both carry a derivative with respect to the
-deformation gradient: the pull-back ``Q = J F^{-1} q`` couples a heat flux to the
+spatial terms (for example isotropic Fourier conduction, ``q = -k ∇_x T``) needs its inputs pushed
+forward. Both are vertices in the graph, because both carry a derivative with respect to the
+deformation gradient: the pull-back ``q_0 = J F^{-1} q`` couples a heat flux to the
 displacement.
 
 Users never name the transformation itself. The rule (Piola, covariant, Nanson, …) is a
@@ -20,70 +20,56 @@ formula.
 
 
 """
-    PullBack(node; motion = nothing)
+    PullBack(vertex; motion = nothing)
 
-The pull-back of `node` to the reference configuration.
+The pull-back of `vertex` to the reference configuration.
 
 # Fields
-- `node::N`: the node being pulled back.
+- `vertex::N`: the vertex being pulled back.
 - `motion::Union{Symbol,Nothing}`: the displacement field defining the motion, or
   `nothing` to use the motion declared by [`FiniteStrain`](@ref).
 """
-struct PullBack{N<:AbstractNode} <: AbstractNode
-    node::N
+struct PullBack{N<:AbstractVertex} <: AbstractVertex
+    vertex::N
     motion::Union{Symbol,Nothing}
 end
 
-PullBack(node::AbstractNode; motion::Union{Symbol,Nothing} = nothing) =
-    PullBack(node, motion)
+PullBack(vertex::AbstractVertex; motion::Union{Symbol,Nothing}=nothing) =
+    PullBack(vertex, motion)
 
 
 """
-    PushForward(node; motion = nothing)
+    PushForward(vertex; motion = nothing)
 
-The push-forward of `node` to the current configuration.
+The push-forward of `vertex` to the current configuration.
 
 # Fields
-- `node::N`: the node being pushed forward.
+- `vertex::N`: the vertex being pushed forward.
 - `motion::Union{Symbol,Nothing}`: the displacement field defining the motion, or
   `nothing` to use the motion declared by [`FiniteStrain`](@ref).
 """
-struct PushForward{N<:AbstractNode} <: AbstractNode
-    node::N
+struct PushForward{N<:AbstractVertex} <: AbstractVertex
+    vertex::N
     motion::Union{Symbol,Nothing}
 end
 
-PushForward(node::AbstractNode; motion::Union{Symbol,Nothing} = nothing) =
-    PushForward(node, motion)
+PushForward(vertex::AbstractVertex; motion::Union{Symbol,Nothing}=nothing) =
+    PushForward(vertex, motion)
 
 
-const AbstractTransformNode = Union{PullBack,PushForward}
+const AbstractTransformVertex = Union{PullBack,PushForward}
 
 
 # ---------------------------------------------------------------------------------------- #
 # ---------------------------------- Graph bookkeeping ----------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
-function quantity(transform::PullBack, fields::Tuple)
-    # An unknown inner quantity, or one without a reference counterpart, gives no tag.
-    inner = quantity(transform.node, fields)
-    if inner === nothing
-        return nothing
-    else
-        return pulled_back(inner)
-    end
-end
-
-
-function quantity(transform::PushForward, fields::Tuple)
-    # An unknown inner quantity, or one without a current counterpart, gives no tag.
-    inner = quantity(transform.node, fields)
-    if inner === nothing
-        return nothing
-    else
-        return pushed_forward(inner)
-    end
-end
+# A transform carries the tag of its inner quantity's counterpart. An unknown inner
+# quantity, or one without a counterpart in the target configuration, gives no tag.
+quantity(transform::PullBack, fields::Tuple) =
+    wrapped_quantity(pulled_back, transform, fields)
+quantity(transform::PushForward, fields::Tuple) =
+    wrapped_quantity(pushed_forward, transform, fields)
 
 
 """
@@ -92,9 +78,9 @@ end
 Return the displacement field whose motion `transform` uses under `assumption`, or
 `nothing` under small strains, where the transform is the identity.
 """
-transform_motion(::AbstractTransformNode, ::SmallStrain) = nothing
+transform_motion(::AbstractTransformVertex, ::SmallStrain) = nothing
 
-function transform_motion(transform::AbstractTransformNode, assumption::FiniteStrain)
+function transform_motion(transform::AbstractTransformVertex, assumption::FiniteStrain)
     # A transform may name its own motion; otherwise it uses the problem's.
     if transform.motion === nothing
         return motion_field(assumption)
@@ -104,12 +90,12 @@ function transform_motion(transform::AbstractTransformNode, assumption::FiniteSt
 end
 
 
-function node_fields(
-    transform::AbstractTransformNode,
+function vertex_fields(
+    transform::AbstractTransformVertex,
     assumption::AbstractKinematicAssumption,
 )
-    # The transformed value depends on the inner node and, under finite strains, on F.
-    fields = copy(node_fields(transform.node, assumption))
+    # The transformed value depends on the inner vertex and, under finite strains, on F.
+    fields = copy(vertex_fields(transform.vertex, assumption))
     motion = transform_motion(transform, assumption)
     if motion !== nothing && !(motion in fields)
         push!(fields, motion)
@@ -120,11 +106,11 @@ end
 
 # Under small strains a transform is the identity; under finite strains it involves F and
 # J, so it is never affine.
-is_affine(transform::AbstractTransformNode, assumption::SmallStrain) =
-    is_affine(transform.node, assumption)
-is_affine(::AbstractTransformNode, ::FiniteStrain) = false
+is_affine(transform::AbstractTransformVertex, assumption::SmallStrain) =
+    is_affine(transform.vertex, assumption)
+is_affine(::AbstractTransformVertex, ::FiniteStrain) = false
 
-subnodes(transform::AbstractTransformNode) = (transform.node,)
+subvertices(transform::AbstractTransformVertex) = (transform.vertex,)
 
 
 # ---------------------------------------------------------------------------------------- #
@@ -146,7 +132,7 @@ pulled_back_measure(::CurrentBoundary) = ReferenceBoundary()
     measure_transformation_rule(measure)
 
 Return the rule by which `measure` is mapped onto its reference counterpart:
-``\\mathrm{d}v = J \\, \\mathrm{d}V_0`` for volumes, and Nanson's formula for areas. Returns
+``\\mathrm{d}v = J \\, \\mathrm{d}v_0`` for volumes, and Nanson's formula for areas. Returns
 `nothing` for measures that are already referential.
 """
 measure_transformation_rule(::AbstractMeasure) = nothing

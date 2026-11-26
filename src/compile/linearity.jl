@@ -3,15 +3,15 @@ Linearity.
 
 A problem is linear when its residual is affine in the unknowns. That property is inferred
 from the graph (every term's test side and flux must be affine, and no boundary load may
-follow the deformation), so a user's `linear = true` is checked once, in the audit, and
-then trusted by the solver.
+follow the deformation), so a user's `linear = true` is checked once, in the formulation
+verification, and then trusted by the solver.
 
 Linearity is one of two independent properties that let a solver skip work. The other is
 that the tangent has not changed since it was last factorised, which is what
-`FactorisationKey` records. A linear problem with a fixed time step needs one
-factorisation for the whole analysis; a linear problem with adaptive time steps
-refactorises whenever the step changes but never iterates; and a nonlinear problem can
-reuse a factorisation (modified Newton) without being linear.
+`FactorisationKey` records. A linear problem with a fixed time step needs one factorisation
+for the whole analysis; a linear problem with adaptive time steps refactorises whenever the
+step changes but never iterates; and a nonlinear problem can reuse a factorisation (modified
+Newton) without being linear.
 =#
 
 
@@ -52,6 +52,7 @@ so that its pull-back (by Nanson's formula) depends on the deformation.
 is_follower_load(::AbstractBoundaryCondition, ::AbstractKinematicAssumption) = false
 
 function is_follower_load(bc::NaturalBC, ::FiniteStrain)
+    # A load per unit current area is pulled back with F, so it follows the deformation.
     follower = quantity_configuration(bc_quantity(bc)) isa CurrentConfiguration
     return follower
 end
@@ -61,7 +62,7 @@ end
     FactorisationKey(Δt, parameters_hash, constrained_dofs_hash)
 
 What a cached factorisation of the tangent depends on. A solver reuses its factorisation
-for as long as the key is unchanged. Changing Dirichlet *values* does not change the key
+for as long as the key is unchanged. Changing essential *values* does not change the key
 (only the right-hand side, through Ferrite's `apply_rhs!`); changing *which* degrees of
 freedom are constrained does.
 

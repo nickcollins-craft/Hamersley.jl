@@ -1,19 +1,19 @@
 #=
-Kinematic nodes.
+Kinematic vertices.
 
-These nodes build the standard kinematic quantities of continuum mechanics from a
-displacement field. They are nodes in their own right (rather than constitutive inputs
+These vertices build the standard kinematic quantities of continuum mechanics from a
+displacement field. They are vertices in their own right (rather than constitutive inputs
 computed somewhere else) because their linearisation is where the geometric stiffness of
 a finite-strain problem comes from.
 =#
 
 
 """
-    AbstractKinematicNode
+    AbstractKinematicVertex
 
-Nodes that compute a kinematic quantity from a displacement field.
+Vertices that compute a kinematic quantity from a displacement field.
 """
-abstract type AbstractKinematicNode <: AbstractNode end
+abstract type AbstractKinematicVertex <: AbstractVertex end
 
 
 """
@@ -24,7 +24,7 @@ The deformation gradient ``F = I + ∇_0 u`` of the displacement field `field`.
 # Fields
 - `field::Symbol`: the name of the displacement field ``u``.
 """
-struct DeformationGradient <: AbstractKinematicNode
+struct DeformationGradient <: AbstractKinematicVertex
     field::Symbol
 end
 
@@ -38,7 +38,7 @@ The Green–Lagrange strain ``E = \\tfrac{1}{2}(F^T F - I)`` of the displacement
 # Fields
 - `field::Symbol`: the name of the displacement field ``u``.
 """
-struct GreenLagrangeStrain <: AbstractKinematicNode
+struct GreenLagrangeStrain <: AbstractKinematicVertex
     field::Symbol
 end
 
@@ -52,7 +52,7 @@ The infinitesimal strain ``ε = \\operatorname{sym}(∇u)`` of the displacement 
 # Fields
 - `field::Symbol`: the name of the displacement field ``u``.
 """
-struct InfinitesimalStrain <: AbstractKinematicNode
+struct InfinitesimalStrain <: AbstractKinematicVertex
     field::Symbol
 end
 
@@ -66,34 +66,34 @@ is linearised to ``J ≈ 1 + \\operatorname{tr} ε``.
 # Fields
 - `field::Symbol`: the name of the displacement field ``u``.
 """
-struct VolumeRatio <: AbstractKinematicNode
+struct VolumeRatio <: AbstractKinematicVertex
     field::Symbol
 end
 
 
-operand_field(node::AbstractKinematicNode) = node.field
+operand_field(vertex::AbstractKinematicVertex) = vertex.field
 
-# The quantity tag of each kinematic node does not depend on the field's declaration, but
+# The quantity tag of each kinematic vertex does not depend on the field's declaration, but
 # we still check that the field exists so that undeclared fields give no tag.
-quantity(node::DeformationGradient, fields::Tuple) =
-    field_quantity(_ -> DeformationGradientTensor(), node, fields)
-quantity(node::GreenLagrangeStrain, fields::Tuple) =
-    field_quantity(_ -> GreenLagrangeStrainTensor(), node, fields)
-quantity(node::InfinitesimalStrain, fields::Tuple) =
-    field_quantity(_ -> InfinitesimalStrainTensor(), node, fields)
-quantity(node::VolumeRatio, fields::Tuple) =
-    field_quantity(_ -> JacobianDeterminant(), node, fields)
+quantity(vertex::DeformationGradient, fields::Tuple) =
+    field_quantity(_ -> DeformationGradientTensor(), vertex, fields)
+quantity(vertex::GreenLagrangeStrain, fields::Tuple) =
+    field_quantity(_ -> GreenLagrangeStrainTensor(), vertex, fields)
+quantity(vertex::InfinitesimalStrain, fields::Tuple) =
+    field_quantity(_ -> InfinitesimalStrainTensor(), vertex, fields)
+quantity(vertex::VolumeRatio, fields::Tuple) =
+    field_quantity(_ -> JacobianDeterminant(), vertex, fields)
 
-node_fields(node::AbstractKinematicNode, ::AbstractKinematicAssumption) =
-    [operand_field(node)]
+vertex_fields(vertex::AbstractKinematicVertex, ::AbstractKinematicAssumption) =
+    [operand_field(vertex)]
 
-subnodes(::AbstractKinematicNode) = ()
+subvertices(::AbstractKinematicVertex) = ()
 
 
 """
-    is_affine(node, assumption)
+    is_affine(vertex, assumption)
 
-Return `true` when the value of `node` is an affine function of the fields it depends on
+Return `true` when the value of `vertex` is an affine function of the fields it depends on
 under `assumption`.
 
 ``F = I + ∇_0 u`` and ``ε`` are affine in ``u``. ``E`` and ``J`` are not under finite

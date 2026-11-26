@@ -29,13 +29,13 @@ function coupling_matrix(problem::Problem)
         if row === nothing
             continue
         end
-        mark_dependencies!(coupling, row, node_fields(term_flux(term), assumption), names)
+        mark_dependencies!(coupling, row, vertex_fields(term_flux(term), assumption), names)
 
         # The test side only adds dependencies when its variation depends on the solution
         # (δE = sym(Fᵀ ∇_0 δu) does; δp and δF = ∇_0 δu do not).
         test = term_test(term)
         if !is_affine(test, assumption)
-            mark_dependencies!(coupling, row, node_fields(test, assumption), names)
+            mark_dependencies!(coupling, row, vertex_fields(test, assumption), names)
         end
     end
 
@@ -55,7 +55,7 @@ end
     mark_dependencies!(coupling, row, dependencies, names)
 
 Set `coupling[row, j]` to `true` for every field in `dependencies`, where `j` is that
-field's position in `names`. Undeclared fields are skipped (the audit reports them).
+field's position in `names`. Undeclared fields are skipped (the formulation verification reports them).
 """
 function mark_dependencies!(
     coupling::AbstractMatrix{Bool},
@@ -63,6 +63,7 @@ function mark_dependencies!(
     dependencies::AbstractVector{Symbol},
     names::AbstractVector{Symbol},
 )
+    # The column of each field is its position in the declaration order.
     for dependency in dependencies
         column = findfirst(==(dependency), names)
         if column !== nothing

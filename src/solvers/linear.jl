@@ -9,7 +9,7 @@ x = x_{\text{pred}} - K^{-1} R(x_{\text{pred}}).
 
 So the tangent ``K`` is assembled, constrained and factorised once, and reused for as long
 as its `FactorisationKey` (time step, parameters, constrained set) is unchanged. Every
-step then assembles the residual only, applies the Dirichlet values to the right-hand side
+step then assembles the residual only, applies the essential values to the right-hand side
 with Ferrite's `get_rhs_data` / `apply_rhs!` (which leave the factorised matrix alone),
 and back-substitutes. No material state is updated, no convergence check is made.
 =#

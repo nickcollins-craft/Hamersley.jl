@@ -12,8 +12,8 @@ grid checks.
         @test !Hamersley.is_supported_family(serendipity.interpolation)
         @test_throws ArgumentError Hamersley.check_supported_family(serendipity)
 
-        # The audit reports unsupported families too, listing what is supported.
-        report = audit(Problem(; fields = (serendipity,), kinematics = SmallStrain()))
+        # The formulation verification reports unsupported families too, listing what is supported.
+        report = verification(Problem(; fields=(serendipity,), kinematics=SmallStrain()))
         messages = Hamersley.issue_messages(report)
         @test any(contains("please choose from: Lagrange"), messages)
     end
@@ -28,13 +28,13 @@ grid checks.
 
     @testset "Resolution" begin
         u = Field(:u, VectorField(), Lagrange, 2)
-        θ = Field(:θ, ScalarField(), Lagrange, 1)
+        T = Field(:T, ScalarField(), Lagrange, 1)
 
         # Scalar families are vectorised for vector fields only.
         @test Hamersley.resolve_interpolation(u, Ferrite.RefTriangle, 2) ==
-              Lagrange{Ferrite.RefTriangle,2}()^2
-        @test Hamersley.resolve_interpolation(θ, Ferrite.RefHexahedron, 3) ==
-              Lagrange{Ferrite.RefHexahedron,1}()
+            Lagrange{Ferrite.RefTriangle,2}()^2
+        @test Hamersley.resolve_interpolation(T, Ferrite.RefHexahedron, 3) ==
+            Lagrange{Ferrite.RefHexahedron,1}()
     end
 
     @testset "Grids" begin
@@ -45,12 +45,12 @@ grid checks.
         # Facet sets the grid lacks are reported.
         base = small_strain_elasticity()
         missing_set = Problem(;
-            fields = base.fields,
-            equations = base.equations,
-            boundary_conditions = (
-                NaturalBC(:u; on = :lateral, quantity = ReferenceTraction()),
+            fields=base.fields,
+            equations=base.equations,
+            boundary_conditions=(
+                NaturalBC(:u; on=:lateral, quantity=ReferenceTraction()),
             ),
-            kinematics = SmallStrain(),
+            kinematics=SmallStrain(),
         )
         @test_throws ArgumentError Hamersley.validate_grid(grid, missing_set)
 

@@ -68,7 +68,7 @@ function NewtonStrategy(;
     relative_tolerance::Real,
     absolute_tolerance::Real,
     maximum_iterations::Integer,
-    block_selection::AbstractBlockSelection = FullTangent(),
+    block_selection::AbstractBlockSelection=FullTangent(),
 )
     # We promote the tolerances to a common type so that the struct is concrete.
     relative, absolute = promote(relative_tolerance, absolute_tolerance)
@@ -103,18 +103,18 @@ is affine, and full Newton otherwise.
 """
 function default_strategy(
     problem::Problem;
-    relative_tolerance::Real = 1e-10,
-    absolute_tolerance::Real = 1e-12,
-    maximum_iterations::Integer = 25,
+    relative_tolerance::Real=1e-10,
+    absolute_tolerance::Real=1e-12,
+    maximum_iterations::Integer=25,
 )
-    # The linearity claim has already been checked by the audit, so we can trust it here.
+    # The linearity claim has already been checked by the formulation verification, so we can trust it here.
     if is_affine(problem)
         return CachedFactorisationStrategy()
     else
         strategy = NewtonStrategy(;
-            relative_tolerance = relative_tolerance,
-            absolute_tolerance = absolute_tolerance,
-            maximum_iterations = maximum_iterations,
+            relative_tolerance=relative_tolerance,
+            absolute_tolerance=absolute_tolerance,
+            maximum_iterations=maximum_iterations,
         )
         return strategy
     end

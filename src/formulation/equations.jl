@@ -3,7 +3,7 @@ Equations.
 
 An equation is the set of weak terms tested by one field. A multiphysics problem has one
 equation per test field: balance of momentum tested by ``δu``, balance of energy tested by
-``δθ``, and so on.
+``δT``, and so on.
 =#
 
 

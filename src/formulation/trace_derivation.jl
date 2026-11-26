@@ -5,12 +5,12 @@ Integrating a weak form by parts leaves one boundary term per trace of the test 
 and which traces appear depends only on the operators acting on the test function in the
 volume terms:
 
-| Operator on the test function | Boundary traces                                   |
-|-------------------------------|---------------------------------------------------|
-| value ``δu``                  | none                                              |
-| gradient ``∇δu``              | ``δu``                                            |
-| second gradient ``∇∇δu``      | ``δu``, ``∂_N δu`` on faces, ``δu`` on sharp edges |
-| divergence ``\operatorname{Div} δq`` | ``δq \cdot N``                             |
+| Operator on the test function | Boundary traces                                        |
+|-------------------------------|--------------------------------------------------------|
+| value ``δu``                  | none                                                   |
+| gradient ``∇δu``              | ``δu``                                                 |
+| second gradient ``∇∇δu``      | ``δu``, ``∂_{n_0} δu`` on faces, ``δu`` on sharp edges |
+| divergence ``Div δq``         | ``δq \cdot n_0``                                       |
 
 So the admissible traces of each field are computed, not declared. This also gets the
 roles right in mixed formulations: for mixed Darcy flow the normal flux is the essential
@@ -24,20 +24,20 @@ under a divergence.
 # ---------------------------------------------------------------------------------------- #
 
 """
-    boundary_traces(node)
+    boundary_traces(vertex)
 
 Return the boundary traces left by integrating by parts a volume term whose test side is
-the variation of `node`.
+the variation of `vertex`.
 """
-boundary_traces(::AbstractNode) = ()
+boundary_traces(::AbstractVertex) = ()
 boundary_traces(::Value) = ()
 boundary_traces(::ReferenceGradient) = (ValueTrace(),)
 boundary_traces(::Divergence) = (NormalComponentTrace(),)
 boundary_traces(::SecondGradient) = (ValueTrace(), NormalGradientTrace(), EdgeValueTrace())
-boundary_traces(::AbstractKinematicNode) = (ValueTrace(),)
-boundary_traces(node::Rate) = boundary_traces(node.node)
-boundary_traces(node::PullBack) = boundary_traces(node.node)
-boundary_traces(node::PushForward) = boundary_traces(node.node)
+boundary_traces(::AbstractKinematicVertex) = (ValueTrace(),)
+boundary_traces(vertex::Rate) = boundary_traces(vertex.vertex)
+boundary_traces(vertex::PullBack) = boundary_traces(vertex.vertex)
+boundary_traces(vertex::PushForward) = boundary_traces(vertex.vertex)
 
 
 """
@@ -51,7 +51,7 @@ function derived_traces(problem::Problem, field::Symbol)
     for (equation, term) in problem_terms(problem)
         # Only volume terms tested by this field are integrated by parts.
         if test_field(equation) === field && is_volume_term(term)
-            for trace in boundary_traces(term_test(term).node)
+            for trace in boundary_traces(term_test(term).vertex)
                 push_unique!(traces, trace)
             end
         end
@@ -61,7 +61,7 @@ end
 
 
 # ---------------------------------------------------------------------------------------- #
-# ------------------------------- Status of every trace ---------------------------------- #
+# -------------------------------- Status of every trace --------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
 """
@@ -105,14 +105,15 @@ The status of one derived trace of one field on one boundary.
 # Fields
 - `boundary::Symbol`: the name of the facet set.
 - `field::Symbol`: the field.
-- `trace::AbstractTrace`: the derived trace.
-- `status::AbstractTraceStatus`: whether it is prescribed, loaded or defaulted.
+- `trace::T`: the derived [`AbstractTrace`](@ref).
+- `status::S`: the [`AbstractTraceStatus`](@ref): whether the trace is prescribed, loaded
+  or defaulted.
 """
-struct BoundaryTraceStatus
+struct BoundaryTraceStatus{T<:AbstractTrace,S<:AbstractTraceStatus}
     boundary::Symbol
     field::Symbol
-    trace::AbstractTrace
-    status::AbstractTraceStatus
+    trace::T
+    status::S
 end
 
 

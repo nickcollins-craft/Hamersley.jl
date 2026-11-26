@@ -8,7 +8,7 @@ The package is organised in layers, each of which only uses the ones above it:
 - `materials/`: the constitutive law interface and the material library;
 - `expressions/`: the dataflow graph of a formulation (fields, operators, kinematics,
   pull-backs, constitutive bindings);
-- `formulation/`: weak terms, equations, boundary conditions, problems and the audit;
+- `formulation/`: weak terms, equations, boundary conditions, problems and the formulation verification;
 - `discretisation/`: interpolations, grids, degrees of freedom and quadrature;
 - `state/` and `time/`: internal state and time integration;
 - `compile/`: the single step from a formulation to type-stable element kernels;
@@ -44,20 +44,20 @@ include("materials/library/neo_hookean.jl")
 
 # The dataflow graph of a formulation.
 include("expressions/fields.jl")
-include("expressions/nodes.jl")
+include("expressions/vertices.jl")
 include("expressions/kinematics.jl")
 include("expressions/transforms.jl")
 include("expressions/constitutive.jl")
 include("expressions/traversal.jl")
 
-# Weak forms, problems and the audit.
+# Weak forms, problems and the formulation verification.
 include("formulation/terms.jl")
 include("formulation/equations.jl")
 include("formulation/boundary_conditions.jl")
 include("formulation/templates.jl")
 include("formulation/problems.jl")
 include("formulation/trace_derivation.jl")
-include("formulation/audit.jl")
+include("formulation/verification.jl")
 
 # Discretisation.
 include("discretisation/interpolations.jl")

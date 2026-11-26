@@ -5,7 +5,7 @@ A quantity tag records what a quantity *means*: which physical object it is, whi
 configuration it is measured per unit of, and how it transforms between configurations.
 It says nothing about where the value comes from. The same tag (say `CauchyStress()`) is
 carried by the output of a constitutive law, by an interpolated stress field in a mixed
-formulation, or by a pulled-back quantity, and the audit checks conjugacy and
+formulation, or by a pulled-back quantity, and the formulation verification checks conjugacy and
 configurations on tags alone.
 
 This file defines the tags, their configurations, the pull-back and push-forward tables,
@@ -77,7 +77,7 @@ abstract type AbstractBoundaryQuantity <: AbstractQuantity end
 
 
 # ---------------------------------------------------------------------------------------- #
-# ------------------------------------ Field values -------------------------------------- #
+# ------------------------------------- Field values ------------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
 """
@@ -93,7 +93,7 @@ FieldValue(::S) where {S<:AbstractFieldShape} = FieldValue{S}()
 """
     Temperature()
 
-The absolute temperature ``θ``.
+The absolute temperature ``T``.
 """
 struct Temperature <: AbstractFieldValue{ScalarField} end
 
@@ -108,7 +108,7 @@ struct Pressure <: AbstractFieldValue{ScalarField} end
 
 
 # ---------------------------------------------------------------------------------------- #
-# ---------------------------------- Kinematic quantities -------------------------------- #
+# --------------------------------- Kinematic quantities --------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
 """
@@ -179,13 +179,13 @@ struct InfinitesimalStrainTensor <: AbstractKinematicQuantity end
 """
     JacobianDeterminant()
 
-The volume ratio ``J = \\det F = \\mathrm{d}v / \\mathrm{d}V_0``.
+The volume ratio ``J = \\det F = \\mathrm{d}v / \\mathrm{d}v_0``.
 """
 struct JacobianDeterminant <: AbstractKinematicQuantity end
 
 
 # ---------------------------------------------------------------------------------------- #
-# ------------------------------------ Stress measures ----------------------------------- #
+# ----------------------------------- Stress measures ------------------------------------ #
 # ---------------------------------------------------------------------------------------- #
 
 """
@@ -237,7 +237,7 @@ struct HyperStress <: AbstractStressMeasure end
 """
     MaterialFlux()
 
-A flux ``Q`` per unit reference area, such as the material heat flux or the material
+A flux ``q_0`` per unit reference area, such as the material heat flux or the material
 Darcy flux.
 """
 struct MaterialFlux <: AbstractFluxQuantity end
@@ -247,7 +247,7 @@ struct MaterialFlux <: AbstractFluxQuantity end
     SpatialFlux()
 
 A flux ``q`` per unit current area, related to the material flux by the Piola transform
-``Q = J F^{-1} q``.
+``q_0 = J F^{-1} q``.
 """
 struct SpatialFlux <: AbstractFluxQuantity end
 
@@ -275,13 +275,13 @@ SpatialVolumeDensity(::S) where {S<:AbstractFieldShape} = SpatialVolumeDensity{S
 
 
 # ---------------------------------------------------------------------------------------- #
-# ---------------------------------- Boundary quantities --------------------------------- #
+# --------------------------------- Boundary quantities ---------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
 """
     ReferenceTraction()
 
-A traction ``T = P N`` per unit reference area.
+A traction ``t_0 = P n_0`` per unit reference area.
 """
 struct ReferenceTraction <: AbstractBoundaryQuantity end
 
@@ -299,7 +299,7 @@ struct SpatialTraction <: AbstractBoundaryQuantity end
     DoubleForce()
 
 The double force of a second-gradient continuum, conjugate to the normal derivative
-``∂_N u`` on the boundary.
+``∂_{n_0} u`` on the boundary.
 """
 struct DoubleForce <: AbstractBoundaryQuantity end
 
@@ -307,8 +307,7 @@ struct DoubleForce <: AbstractBoundaryQuantity end
 """
     EdgeForce()
 
-The line (wedge) force that second-gradient continua carry on sharp edges of the
-boundary.
+The line force that second-gradient continua carry on sharp edges of the boundary.
 """
 struct EdgeForce <: AbstractBoundaryQuantity end
 
@@ -316,7 +315,7 @@ struct EdgeForce <: AbstractBoundaryQuantity end
 """
     ReferenceNormalFlux()
 
-A scalar normal flux ``Q \\cdot N`` per unit reference area.
+A scalar normal flux ``q_0 \\cdot n_0`` per unit reference area.
 """
 struct ReferenceNormalFlux <: AbstractBoundaryQuantity end
 
@@ -368,14 +367,14 @@ strip_rate(tag::RateOf) = strip_rate(tag.quantity)
 
 
 # ---------------------------------------------------------------------------------------- #
-# ----------------------------------- Placeholder values --------------------------------- #
+# ---------------------------------- Placeholder values ---------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
 """
     PlaceholderValue(name)
 
 A named stand-in for a prescribed value (for example the boundary temperature
-``\\bar{θ}``) while the representation of prescribed values is not yet settled.
+``\\bar{T}``) while the representation of prescribed values is not yet settled.
 
 # Fields
 - `name::Symbol`: the symbol of the prescribed value.
@@ -431,7 +430,7 @@ configuration(tag::AbstractQuantity) = quantity_configuration(tag)
 
 
 # ---------------------------------------------------------------------------------------- #
-# ---------------------------- Transformations between configurations -------------------- #
+# ------------------------ Transformations between configurations ------------------------ #
 # ---------------------------------------------------------------------------------------- #
 
 """
@@ -447,7 +446,7 @@ abstract type AbstractTransformationRule end
 """
     PiolaVectorRule()
 
-The Piola transform of a flux, ``Q = J F^{-1} q``.
+The Piola transform of a flux, ``q_0 = J F^{-1} q``.
 """
 struct PiolaVectorRule <: AbstractTransformationRule end
 
@@ -471,7 +470,11 @@ struct KirchhoffStressRule <: AbstractTransformationRule end
 """
     CovariantRule()
 
-The covariant map of a gradient, ``∇_0(\\cdot) = F^T ∇_x(\\cdot)``.
+The covariant map of a gradient: by the chain rule, ``F`` contracts the derivative index
+only, and the field's own indices are unchanged. For a scalar field this is
+``∇_0 T = F^T ∇_x T``; for a vector field, with ``(∇v)_{ij} = ∂v_i/∂x_j``, it is
+``∇_0 v = (∇_x v) F``. The push-forward contracts the same index with ``F^{-1}``
+(``∇_x T = F^{-T} ∇_0 T``, ``∇_x v = (∇_0 v) F^{-1}``).
 """
 struct CovariantRule <: AbstractTransformationRule end
 
@@ -487,8 +490,8 @@ struct VolumeDensityRule <: AbstractTransformationRule end
 """
     NansonRule()
 
-The map of an area density by Nanson's formula, ``n \\, \\mathrm{d}a = J F^{-T} N \\,
-\\mathrm{d}A_0``.
+The map of an area density by Nanson's formula, ``n \\, \\mathrm{d}a = J F^{-T} n_0 \\,
+\\mathrm{d}a_0``.
 """
 struct NansonRule <: AbstractTransformationRule end
 
@@ -556,7 +559,7 @@ rate_of(tag::AbstractQuantity) = RateOf(tag)
 
 
 # ---------------------------------------------------------------------------------------- #
-# ----------------------------- Canonical tags per assumption ---------------------------- #
+# ---------------------------- Canonical tags per assumption ----------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
 """
@@ -614,7 +617,7 @@ written one way round and symmetrised there.
 Pairs that hold under either assumption are listed in the two-argument table
 `is_conjugate_pair(a, b)`; pairs that hold only under one assumption add a method with
 that assumption as the first argument. The table is deliberately conservative: a pair
-that is not listed is reported by the audit, and adding a new physical pairing means
+that is not listed is reported by the formulation verification, and adding a new physical pairing means
 adding a method here.
 """
 is_conjugate_pair(::AbstractKinematicAssumption, a, b) = is_conjugate_pair(a, b)
@@ -637,11 +640,11 @@ is_conjugate_pair(::InfinitesimalStrainTensor, ::CauchyStress) = true
 # Second-gradient continua: ∇∇δu ⋮ hyperstress.
 is_conjugate_pair(::MaterialSecondGradient, ::HyperStress) = true
 
-# Scalar transport: ∇δθ · flux, in either configuration.
+# Scalar transport: ∇δT · flux, in either configuration.
 is_conjugate_pair(::MaterialGradient{ScalarField}, ::MaterialFlux) = true
 is_conjugate_pair(::SpatialGradient{ScalarField}, ::SpatialFlux) = true
 
-# Values against volume densities: δu · b, δθ r, δθ (stored content).
+# Values against volume densities: δu · b, δT r, δT (stored content).
 is_conjugate_pair(::AbstractFieldValue{S}, ::ReferenceVolumeDensity{S}) where {S} = true
 is_conjugate_pair(::AbstractFieldValue{S}, ::SpatialVolumeDensity{S}) where {S} = true
 

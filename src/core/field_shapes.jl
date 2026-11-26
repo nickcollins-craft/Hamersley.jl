@@ -18,7 +18,7 @@ abstract type AbstractFieldShape end
 """
     ScalarField()
 
-A scalar-valued field, such as the temperature ``θ`` or the pore pressure ``p``.
+A scalar-valued field, such as the temperature ``T`` or the pore pressure ``p``.
 """
 struct ScalarField <: AbstractFieldShape end
 

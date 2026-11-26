@@ -51,7 +51,7 @@ struct IntermediateConfiguration <: AbstractConfiguration end
     ConfigurationIndependent()
 
 Marker for quantities that do not belong to any configuration, such as the temperature
-``θ`` or the volume ratio ``J``. A configuration-independent quantity is compatible with
+``T`` or the volume ratio ``J``. A configuration-independent quantity is compatible with
 every configuration.
 """
 struct ConfigurationIndependent <: AbstractConfiguration end
@@ -97,7 +97,7 @@ abstract type AbstractInterfaceMeasure <: AbstractMeasure end
 """
     ReferenceVolume()
 
-The reference volume element ``\\mathrm{d}V_0``.
+The reference volume element ``\\mathrm{d}v_0``.
 """
 struct ReferenceVolume <: AbstractVolumeMeasure end
 
@@ -105,7 +105,7 @@ struct ReferenceVolume <: AbstractVolumeMeasure end
 """
     CurrentVolume()
 
-The current volume element ``\\mathrm{d}v = J \\, \\mathrm{d}V_0``.
+The current volume element ``\\mathrm{d}v = J \\, \\mathrm{d}v_0``.
 """
 struct CurrentVolume <: AbstractVolumeMeasure end
 
@@ -113,7 +113,7 @@ struct CurrentVolume <: AbstractVolumeMeasure end
 """
     ReferenceBoundary()
 
-The reference area element ``\\mathrm{d}A_0``.
+The reference area element ``\\mathrm{d}a_0``.
 """
 struct ReferenceBoundary <: AbstractBoundaryMeasure end
 
@@ -122,7 +122,7 @@ struct ReferenceBoundary <: AbstractBoundaryMeasure end
     CurrentBoundary()
 
 The current area element ``\\mathrm{d}a``, related to the reference one by Nanson's formula
-``n \\, \\mathrm{d}a = J F^{-T} N \\, \\mathrm{d}A_0``.
+``n \\, \\mathrm{d}a = J F^{-T} n_0 \\, \\mathrm{d}a_0``.
 """
 struct CurrentBoundary <: AbstractBoundaryMeasure end
 
@@ -162,7 +162,7 @@ Return `true` when `a` and `b` are the same configuration, or when either of the
 [`ConfigurationIndependent`](@ref).
 
 This comparison knows nothing about the kinematic assumption of a problem; the
-assumption-aware version, which is what the audit uses, is
+assumption-aware version, which is what the formulation verification uses, is
 `same_configuration(assumption, a, b)` in `kinematic_assumptions.jl`.
 """
 function same_configuration(a::AbstractConfiguration, b::AbstractConfiguration)

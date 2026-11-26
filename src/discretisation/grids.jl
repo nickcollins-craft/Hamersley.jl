@@ -48,6 +48,7 @@ end
 Throw an `ArgumentError` listing every set that `problem` names but `grid` lacks.
 """
 function validate_grid(grid::Ferrite.AbstractGrid, problem::Problem)
+    # We report every missing set at once, rather than only the first.
     messages = grid_issues(grid, problem)
     if !isempty(messages)
         throw(ArgumentError(join(messages, "\n")))

@@ -2,14 +2,14 @@
 Placeholder constitutive laws.
 
 While the numerics are not yet written, formulations still need laws with declared inputs,
-outputs and dependencies, so that the audit, the trace derivation and the coupling
+outputs and dependencies, so that the formulation verification, the trace derivation and the coupling
 analysis can be exercised. `PlaceholderLaw` provides exactly that declaration and nothing
 more.
 =#
 
 
 """
-    PlaceholderLaw(name; inputs, outputs, dependencies, affine = false, potential = false)
+    PlaceholderLaw(name; inputs, outputs, dependencies, affine = false, symmetric_tangent = false)
 
 A constitutive law that declares its interface but cannot be evaluated.
 
@@ -20,7 +20,8 @@ A constitutive law that declares its interface but cannot be evaluated.
 - `dependencies::NamedTuple`: output names mapped to tuples of the input slots they
   depend on. When omitted, every output depends on every input.
 - `affine::Bool`: whether the law is affine in its inputs.
-- `potential::Bool`: whether the law derives from a potential.
+- `symmetric_tangent::Bool`: whether the law's tangent is symmetric (see
+  [`tangent_is_symmetric`](@ref)).
 """
 struct PlaceholderLaw{I<:NamedTuple,O<:NamedTuple,D<:NamedTuple} <: AbstractLaw
     name::Symbol
@@ -28,7 +29,7 @@ struct PlaceholderLaw{I<:NamedTuple,O<:NamedTuple,D<:NamedTuple} <: AbstractLaw
     outputs::O
     dependencies::D
     affine::Bool
-    potential::Bool
+    symmetric_tangent::Bool
 end
 
 
@@ -36,9 +37,9 @@ function PlaceholderLaw(
     name::Symbol;
     inputs::NamedTuple,
     outputs::NamedTuple,
-    dependencies::Union{NamedTuple,Nothing} = nothing,
-    affine::Bool = false,
-    potential::Bool = false,
+    dependencies::Union{NamedTuple,Nothing}=nothing,
+    affine::Bool=false,
+    symmetric_tangent::Bool=false,
 )
     # When no dependencies are given, every output depends on every input.
     if dependencies === nothing
@@ -49,7 +50,7 @@ function PlaceholderLaw(
         declared_dependencies = dependencies
     end
 
-    law = PlaceholderLaw(name, inputs, outputs, declared_dependencies, affine, potential)
+    law = PlaceholderLaw(name, inputs, outputs, declared_dependencies, affine, symmetric_tangent)
     return law
 end
 
@@ -59,4 +60,4 @@ law_inputs(law::PlaceholderLaw) = law.inputs
 law_outputs(law::PlaceholderLaw) = law.outputs
 output_dependencies(law::PlaceholderLaw) = law.dependencies
 is_affine(law::PlaceholderLaw) = law.affine
-has_potential(law::PlaceholderLaw) = law.potential
+tangent_is_symmetric(law::PlaceholderLaw) = law.symmetric_tangent

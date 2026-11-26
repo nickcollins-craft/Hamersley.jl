@@ -2,7 +2,7 @@
 Compressible neo-Hookean hyperelasticity under finite strains.
 
 This is the declaration of the first finite-strain law in the library: its interface (a
-deformation gradient in, a first Piola–Kirchhoff stress out) and its potential. The
+deformation gradient in, a first Piola–Kirchhoff stress out) and its symmetric tangent. The
 evaluation itself is not yet written.
 =#
 
@@ -43,4 +43,4 @@ end
 
 law_inputs(::NeoHookean) = (F = DeformationGradientTensor(),)
 law_outputs(::NeoHookean) = (P = FirstPiolaStress(),)
-has_potential(::NeoHookean) = true
+tangent_is_symmetric(::NeoHookean) = true

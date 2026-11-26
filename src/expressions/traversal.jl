@@ -1,51 +1,50 @@
 #=
 Traversal of the dataflow graph.
 
-These helpers walk a node and everything beneath it. They are what the audit, the trace
+These helpers walk a vertex and everything beneath it. They are what the formulation verification, the trace
 derivation, the linearity inference and the coupling analysis are built on.
 =#
 
 
 """
-    collect_nodes(node)
+    collect_vertices(vertex)
 
-Return a vector holding `node` and every node beneath it, in depth-first order.
+Return a vector holding `vertex` and every vertex beneath it, in depth-first order.
 """
-function collect_nodes(node::AbstractNode)
-    nodes = AbstractNode[]
-    collect_nodes!(nodes, node)
-    return nodes
+function collect_vertices(vertex::AbstractVertex)
+    # We start from an empty vector and let the in-place version append to it recursively.
+    vertices = AbstractVertex[]
+    collect_vertices!(vertices, vertex)
+    return vertices
 end
 
 
 """
-    collect_nodes!(nodes, node)
+    collect_vertices!(vertices, vertex)
 
-Append `node` and every node beneath it to `nodes`, in depth-first order.
+Append `vertex` and every vertex beneath it to `vertices`, in depth-first order.
 """
-function collect_nodes!(nodes::Vector{AbstractNode}, node::AbstractNode)
-    push!(nodes, node)
-    for child in subnodes(node)
-        collect_nodes!(nodes, child)
+function collect_vertices!(vertices::Vector{AbstractVertex}, vertex::AbstractVertex)
+    # The vertex itself comes before its children, which gives depth-first (pre-)order.
+    push!(vertices, vertex)
+    for child in subvertices(vertex)
+        collect_vertices!(vertices, child)
     end
     return nothing
 end
 
 
 """
-    collect_constitutive(node)
+    collect_constitutive(vertex)
 
-Return the distinct [`Constitutive`](@ref) bindings used anywhere beneath `node`.
+Return the distinct [`Constitutive`](@ref) bindings used anywhere beneath `vertex`.
 """
-function collect_constitutive(node::AbstractNode)
+function collect_constitutive(vertex::AbstractVertex)
     bindings = Constitutive[]
-    for subnode in collect_nodes(node)
-        if subnode isa ConstitutiveOutput
-            binding = subnode.constitutive
-            # Several outputs of the same binding should only report it once.
-            if !any(existing -> existing === binding, bindings)
-                push!(bindings, binding)
-            end
+    for subvertex in collect_vertices(vertex)
+        # Several outputs of the same binding should only report it once.
+        if subvertex isa ConstitutiveOutput
+            push_unique!(bindings, subvertex.constitutive)
         end
     end
     return bindings
@@ -53,19 +52,19 @@ end
 
 
 """
-    referenced_fields(node)
+    referenced_fields(vertex)
 
-Return every field name that `node` or any node beneath it refers to, whether or not the
-value depends on it (this is what the audit checks for undeclared fields).
+Return every field name that `vertex` or any vertex beneath it refers to, whether or not the
+value depends on it (this is what the formulation verification checks for undeclared fields).
 """
-function referenced_fields(node::AbstractNode)
+function referenced_fields(vertex::AbstractVertex)
     names = Symbol[]
-    for subnode in collect_nodes(node)
-        # Operators and kinematic nodes name their field; transforms may name a motion.
-        if subnode isa AbstractFieldOperator || subnode isa AbstractKinematicNode
-            push_unique!(names, operand_field(subnode))
-        elseif subnode isa AbstractTransformNode && subnode.motion !== nothing
-            push_unique!(names, subnode.motion)
+    for subvertex in collect_vertices(vertex)
+        # Operators and kinematic vertices name their field; transforms may name a motion.
+        if subvertex isa AbstractFieldOperator || subvertex isa AbstractKinematicVertex
+            push_unique!(names, operand_field(subvertex))
+        elseif subvertex isa AbstractTransformVertex && subvertex.motion !== nothing
+            push_unique!(names, subvertex.motion)
         end
     end
     return names
@@ -75,9 +74,12 @@ end
 """
     push_unique!(collection, item)
 
-Append `item` to `collection` unless it is already there.
+Append `item` to `collection` unless it is already there. Membership is tested with `in`
+(that is, `isequal`), which for the immutable vertices, traces and bindings of the graph
+compares them by content.
 """
 function push_unique!(collection::AbstractVector, item)
+    # The collections here hold a handful of items, so a linear search is the clearest.
     if !(item in collection)
         push!(collection, item)
     end

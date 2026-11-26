@@ -17,7 +17,7 @@ to change, because:
 
 
 # ---------------------------------------------------------------------------------------- #
-# ------------------------------------- The gate ----------------------------------------- #
+# --------------------------------------- The gate --------------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
 """
@@ -47,20 +47,32 @@ supported_family_names() = join(string.(nameof.(SUPPORTED_FAMILIES)), ", ")
 
 
 """
+    unsupported_family_message(field)
+
+Return the message reporting that the family of `field` is not supported, listing the
+families that are. The formulation verification and [`check_supported_family`](@ref) share it, so that the
+two always say the same thing.
+"""
+function unsupported_family_message(field::Field)
+    family = interpolation_family(field_interpolation(field))
+    message =
+        "field $(field_name(field)) uses $family, which is not yet supported, " *
+            "please choose from: $(supported_family_names())"
+    return message
+end
+
+
+"""
     check_supported_family(field)
 
 Throw an `ArgumentError` naming `field`, its family and the supported families if the
 family of `field` is not supported.
 """
 function check_supported_family(field::Field)
-    spec = field_interpolation(field)
-    if !is_supported_family(spec)
-        throw(
-            ArgumentError(
-                "field $(field_name(field)) uses $(interpolation_family(spec)), which is " *
-                "not yet supported, please choose from: $(supported_family_names())",
-            ),
-        )
+    # Unlike the formulation verification, which collects issues, we throw at once: nothing that follows can
+    # proceed without a supported family.
+    if !is_supported_family(field_interpolation(field))
+        throw(ArgumentError(unsupported_family_message(field)))
     end
     return nothing
 end
@@ -148,7 +160,7 @@ function resolve_interpolation(
             throw(
                 ArgumentError(
                     "$family of order $(interpolation_order(spec)) is not available on " *
-                    "$reference_shape (field $(field_name(field)))",
+                        "$reference_shape (field $(field_name(field)))",
                 ),
             )
         else

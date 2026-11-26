@@ -1,25 +1,25 @@
 #=
-Tests of the dataflow graph: node tags, field dependencies, transforms, and affinity.
+Tests of the dataflow graph: vertex tags, field dependencies, transforms, and affinity.
 =#
 
 
 @testset "Expressions" begin
     u = Field(:u, VectorField(), Lagrange, 1)
-    p = Field(:p, ScalarField(), Lagrange, 1; represents = Pressure())
+    p = Field(:p, ScalarField(), Lagrange, 1; represents=Pressure())
     fields = (u, p)
     small = SmallStrain()
-    finite = FiniteStrain(motion = :u)
+    finite = FiniteStrain(motion=:u)
 
     @testset "Quantity tags" begin
         @test Hamersley.quantity(Value(:u), fields) === FieldValue(VectorField())
         @test Hamersley.quantity(Value(:p), fields) === Pressure()
         @test Hamersley.quantity(ReferenceGradient(:p), fields) ===
-              MaterialGradient(ScalarField())
+            MaterialGradient(ScalarField())
         @test Hamersley.quantity(DeformationGradient(:u), fields) ===
-              DeformationGradientTensor()
+            DeformationGradientTensor()
         @test Hamersley.quantity(Rate(Value(:p)), fields) === Hamersley.RateOf(Pressure())
 
-        # Undeclared fields give no tag (the audit reports them separately).
+        # Undeclared fields give no tag (the formulation verification reports them separately).
         @test Hamersley.quantity(Value(:missing), fields) === nothing
     end
 
@@ -28,8 +28,8 @@ Tests of the dataflow graph: node tags, field dependencies, transforms, and affi
         @test Hamersley.quantity(pushed, fields) === SpatialGradient(ScalarField())
 
         # Under finite strains a transform depends on the motion; under small strains not.
-        @test Hamersley.node_fields(pushed, finite) == [:p, :u]
-        @test Hamersley.node_fields(pushed, small) == [:p]
+        @test Hamersley.vertex_fields(pushed, finite) == [:p, :u]
+        @test Hamersley.vertex_fields(pushed, small) == [:p]
         @test !Hamersley.is_affine(pushed, finite)
         @test Hamersley.is_affine(pushed, small)
     end
@@ -45,18 +45,18 @@ Tests of the dataflow graph: node tags, field dependencies, transforms, and affi
         # The flux depends only on the gradient, so it never couples to the value.
         law = PlaceholderLaw(
             :transport;
-            inputs = (g = MaterialGradient(ScalarField()), J = JacobianDeterminant()),
-            outputs = (Q = MaterialFlux(), m = ReferenceVolumeDensity(ScalarField())),
-            dependencies = (Q = (:g,), m = (:J,)),
+            inputs=(g=MaterialGradient(ScalarField()), J=JacobianDeterminant()),
+            outputs=(Q=MaterialFlux(), m=ReferenceVolumeDensity(ScalarField())),
+            dependencies=(Q=(:g,), m=(:J,)),
         )
-        binding = Constitutive(law, (g = ReferenceGradient(:p), J = VolumeRatio(:u)))
-        @test Hamersley.node_fields(output(binding, :Q), finite) == [:p]
-        @test Hamersley.node_fields(output(binding, :m), finite) == [:u]
+        binding = Constitutive(law, (g=ReferenceGradient(:p), J=VolumeRatio(:u)))
+        @test Hamersley.vertex_fields(output(binding, :Q), finite) == [:p]
+        @test Hamersley.vertex_fields(output(binding, :m), finite) == [:u]
     end
 
     @testset "Rates" begin
-        @test_throws ArgumentError Rate(Value(:p); order = 3)
-        @test Rate(Value(:p); order = 2).order == 2
+        @test_throws ArgumentError Rate(Value(:p); order=3)
+        @test Rate(Value(:p); order=2).order == 2
     end
 
     @testset "Placeholders" begin

@@ -2,8 +2,8 @@
 Formulation templates.
 
 Some formulations are discretised differently from how users think about them. A
-second-gradient continuum is posed in terms of ``u``, ``∂_N u`` and the double force, but
-with ``C^0`` elements it is discretised as a micromorphic formulation with a relaxed
+second-gradient continuum is posed in terms of ``u``, ``∂_{n_0} u`` and the double force,
+but with ``C^0`` elements it is discretised as a micromorphic formulation with a relaxed
 gradient field ``ψ ≈ ∇u``. The translation between the two belongs to the formulation, not
 to each user, so a template declares it once through `translate_trace`.
 =#

@@ -4,20 +4,25 @@ The constitutive law interface.
 A constitutive law in Hamersley is a map from a named tuple of tagged inputs (kinematic
 quantities, field values, their rates) and an old internal state to a named tuple of
 tagged outputs and a new internal state. The law declares *what* it consumes and
-produces through quantity tags; a `Constitutive` node in the formulation (see
-`expressions/constitutive.jl`) says *which* nodes feed each input.
+produces through quantity tags; a `Constitutive` vertex in the formulation (see
+`expressions/constitutive.jl`) says *which* vertices feed each input.
 
 Three design decisions are fixed here, ahead of the numerics:
 
-1. A law differentiates its *time-discrete* update, so for history-dependent materials
-   the tangent it returns is the algorithmic (consistent) tangent, taken with respect to
-   the current-step inputs only. The old state and the time step are held fixed.
+1. A law returns the tangent of its *time-discrete* update, taken with respect to the
+   current-step inputs only, with the old state and the time step held fixed. Typically
+   this is the algorithmic (consistent) tangent, but a law may return a different one (for
+   example a secant or stabilised tangent) when that gives better global behaviour. The
+   framework uses whichever tangent the law returns, without checking it against the
+   outputs; the outputs alone determine the residual, and so the solution.
 2. A law declares, per output, which inputs it depends on. This is what the global
    sparsity pattern and the off-diagonal blocks of a multiphysics tangent are built from.
-3. A law that derives from a potential ``Ψ`` says so, because its tangent is then a
-   Hessian and the corresponding block of the global system is symmetric.
+   The tangent a law returns may be sparser than this declaration, but not denser.
+3. A law whose tangent is symmetric says so, so that the corresponding block of the global
+   system can be treated as symmetric. This holds for any law deriving from a potential
+   ``Ψ`` (whose tangent is a Hessian), but also for a law returning a symmetrised tangent.
 
-Rates of inputs (``\dot{ε}``, ``\dot{θ}``) are inputs like any other. The factor that
+Rates of inputs (``\dot{ε}``, ``\dot{T}``) are inputs like any other. The factor that
 relates a rate to the current unknowns belongs to the time integrator, never to the law.
 =#
 
@@ -27,7 +32,7 @@ relates a rate to the current unknowns belongs to the time integrator, never to 
 
 Supertype of constitutive laws. A concrete law implements [`law_inputs`](@ref),
 [`law_outputs`](@ref) and [`constitutive_update`](@ref), and may refine
-[`output_dependencies`](@ref), [`is_affine`](@ref), [`has_potential`](@ref) and
+[`output_dependencies`](@ref), [`is_affine`](@ref), [`tangent_is_symmetric`](@ref) and
 [`initial_state`](@ref).
 """
 abstract type AbstractLaw end
@@ -84,12 +89,16 @@ is_affine(::AbstractLaw) = false
 
 
 """
-    has_potential(law)
+    tangent_is_symmetric(law)
 
-Return `true` when the outputs of `law` derive from a potential ``Ψ`` of its inputs, so
-that its tangent is the Hessian of ``Ψ`` and is symmetric.
+Return `true` when the tangent that `law` returns is symmetric, in the sense that each
+block differentiating an output with respect to its work-conjugate input (such as
+``∂σ/∂ε`` or ``∂P/∂F``) has major symmetry. This holds for any law deriving from a
+potential ``Ψ``, whose tangent is a Hessian, and for any law returning a symmetrised
+tangent. Blocks between an output and a non-conjugate input are not covered. Laws are
+assumed to have non-symmetric tangents unless they say otherwise.
 """
-has_potential(::AbstractLaw) = false
+tangent_is_symmetric(::AbstractLaw) = false
 
 
 """
@@ -114,8 +123,10 @@ Evaluate the time-discrete update of `law`.
 
 # Returns
 A tuple `(outputs, tangents, state_new)`, where `outputs` has one value per output of the
-law, `tangents` holds the algorithmic derivative of each output with respect to each input
-it depends on, and `state_new` is the updated internal state.
+law, `tangents` holds the derivative of each output with respect to each input it depends
+on, and `state_new` is the updated internal state. The tangents are typically the
+algorithmic (consistent) tangent of the update, but a law may return a different one; the
+framework uses them as given.
 """
 function constitutive_update(law::AbstractLaw, inputs, state_old, Δt)
     not_yet_implemented("constitutive_update for $(law_name(law))")

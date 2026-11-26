@@ -8,7 +8,7 @@ A weak term pairs a test-side quantity with a flux, integrated against a measure
 ```
 
 The test side is always written explicitly as a `Variation`, so that, for example,
-``∫ P : ∇_0 δu \, \mathrm{d}V_0`` and ``∫ S : δE \, \mathrm{d}V_0`` are different terms
+``∫ P : ∇_0 δu \, \mathrm{d}v_0`` and ``∫ S : δE \, \mathrm{d}v_0`` are different terms
 with different linearisations. The kind of term (volume, boundary or interface) follows
 from its measure.
 =#
@@ -29,7 +29,7 @@ The weak term ``∫ δ(\\text{test}) : \\text{flux} \\, \\mathrm{d}(\\text{measu
 
 # Fields
 - `test::T`: the test side, a [`Variation`](@ref).
-- `flux::F`: the node paired with the test side.
+- `flux::F`: the vertex paired with the test side.
 - `measure::M`: the measure integrated against; it decides whether this is a volume,
   boundary or interface term.
 - `domain::Union{Symbol,Nothing}`: the cell set (for volume terms) or facet set (for
@@ -42,7 +42,7 @@ F = DeformationGradient(:u)
 Term(Variation(F), output(mechanics, :P), ReferenceVolume())
 ```
 """
-struct Term{T<:Variation,F<:AbstractNode,M<:AbstractMeasure} <: AbstractWeakTerm
+struct Term{T<:Variation,F<:AbstractVertex,M<:AbstractMeasure} <: AbstractWeakTerm
     test::T
     flux::F
     measure::M
@@ -52,9 +52,9 @@ end
 
 Term(
     test::Variation,
-    flux::AbstractNode,
+    flux::AbstractVertex,
     measure::AbstractMeasure;
-    on::Union{Symbol,Nothing} = nothing,
+    on::Union{Symbol,Nothing}=nothing,
 ) = Term(test, flux, measure, on)
 
 

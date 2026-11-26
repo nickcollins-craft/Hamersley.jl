@@ -2,7 +2,7 @@
 The public interface of Hamersley.
 
 Only names a user types to build and run a problem are exported. Internals (traversal
-helpers, audit rules, transformation tables) stay reachable as `Hamersley.name`.
+helpers, formulation verification rules, transformation tables) stay reachable as `Hamersley.name`.
 =#
 
 
@@ -47,7 +47,7 @@ export Constitutive, output
 
 # Formulation.
 export Term, Equation, EssentialBC, NaturalBC, Problem
-export audit, passed, explain
+export verification, passed, explain
 
 # Time integration and solution strategies.
 export QuasiStatic, BackwardEuler, Newmark
