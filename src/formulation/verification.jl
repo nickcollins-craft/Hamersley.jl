@@ -20,6 +20,8 @@ The rules, in the order they are applied:
 8. Boundary conditions target derived traces, with conjugate quantities, and can be
    imposed; in strict mode, no non-standard trace is left defaulted.
 9. A claim that the problem is linear agrees with its structure.
+10. Every equation's residual depends on at least one unknown, since otherwise its rows of
+    the tangent are empty and the system is singular.
 =#
 
 
@@ -108,6 +110,7 @@ function verification(problem::Problem; throw_on_error::Bool=false)
     append!(messages, verification_interpolations(problem))
     append!(messages, verification_boundary_conditions(problem))
     append!(messages, verification_linearity(problem))
+    append!(messages, verification_dependence(problem))
 
     report = VerificationReport(VerificationIssue.(messages))
     if throw_on_error && !passed(report)
@@ -500,28 +503,34 @@ end
 """
     verification_boundary_conditions(problem)
 
-Rule 8: return the messages of [`verification_boundary_condition`](@ref) for every boundary
-condition of `problem`, and, in strict mode, one for every non-standard trace that is left
-defaulted to zero.
+Rule 8: return the messages of [`verification_schedule`](@ref), of
+[`verification_boundary_condition`](@ref) for every condition as written, and, phase by
+phase, of [`verification_conflicts`](@ref) and (in strict mode) one for every non-standard
+trace that is left defaulted to zero. When the problem has several phases, the messages
+that belong to one phase name it.
 """
 function verification_boundary_conditions(problem::Problem)
     messages = String[]
 
-    # Each condition is checked on its own first.
-    for bc in problem.boundary_conditions
+    # The schedule itself must make sense.
+    append!(messages, verification_schedule(problem))
+
+    # Each condition is checked once, as it was written.
+    for bc in written_conditions(problem)
         append!(messages, verification_boundary_condition(problem, bc))
     end
 
-    # In strict mode, non-standard traces must never be left to the default.
-    if problem.strict_boundaries
-        for status in boundary_status(problem)
-            if status.status isa DefaultedToZero && !is_standard_trace(status.trace)
-                push!(
-                    messages,
-                    "trace $(status.trace) of field $(status.field) on " *
-                        "$(status.boundary) " *
-                        "is not specified (strict_boundaries = true)",
-                )
+    # Conflicts and defaulted traces depend on the phase, after inheritance.
+    phases = problem_phases(problem)
+    for (index, phase) in enumerate(phases)
+        prefix = length(phases) > 1 ? "in phase $(phase_name(phase)), " : ""
+        conditions = phase_conditions(problem, index)
+        for message in verification_conflicts(problem, conditions)
+            push!(messages, prefix * message)
+        end
+        if problem.strict_boundaries
+            for message in strict_boundary_issues(problem, index)
+                push!(messages, prefix * message)
             end
         end
     end
@@ -530,14 +539,96 @@ end
 
 
 """
+    strict_boundary_issues(problem, phase)
+
+Return a message for every non-standard trace that no claim covers at all in `phase`.
+Traces covered on only some components leave a remainder whose existence depends on the
+spatial dimension, which the compile step checks.
+"""
+function strict_boundary_issues(problem::Problem, phase)
+    messages = String[]
+    for status in boundary_status(problem, phase)
+        if status.status isa DefaultedToZero &&
+           selects_all(status.components) &&
+           !is_standard_trace(status.trace)
+            push!(
+                messages,
+                "trace $(status.trace) of field $(status.field) on " *
+                    "$(region_label(status.region)) is not specified " *
+                    "(strict_boundaries = true)",
+            )
+        end
+    end
+    return messages
+end
+
+
+"""
+    verification_schedule(problem)
+
+Return a message for every phase name used twice, every phase that can never be reached
+(after a phase that never ends, or ending no later than the phase before it), and every
+release that removes nothing.
+"""
+function verification_schedule(problem::Problem)
+    messages = String[]
+    phases = problem_phases(problem)
+
+    # Phase names must be unique, since messages and reports name phases.
+    seen = Symbol[]
+    for phase in phases
+        if phase_name(phase) in seen
+            push!(messages, "phase $(phase_name(phase)) is declared more than once")
+        end
+        push!(seen, phase_name(phase))
+    end
+
+    # Phases must end in order, and only the last may never end.
+    previous_time = 0.0
+    for (index, phase) in enumerate(phases)
+        if phase.until isa Never && index < length(phases)
+            push!(
+                messages,
+                "phase $(phase_name(phase)) never ends, so phase " *
+                    "$(phase_name(phases[index+1])) is never reached",
+            )
+        elseif phase.until isa AtTime
+            if phase.until.time <= previous_time
+                push!(
+                    messages,
+                    "phase $(phase_name(phase)) ends at time $(phase.until.time), " *
+                        "which is not after $(previous_time)",
+                )
+            end
+            previous_time = phase.until.time
+        end
+    end
+
+    # A release that removes nothing is almost always a mistyped region or field.
+    for (phase, release) in ineffective_releases(problem.schedule)
+        push!(
+            messages,
+            "phase $(phase_name(phase)) releases trace $(bc_trace(release)) of field " *
+                "$(bc_field(release)) on $(region_label(bc_region(release)))" *
+                "$(selection_label(bc_components(release))), which it does not inherit",
+        )
+    end
+    return messages
+end
+
+
+"""
     verification_boundary_condition(problem, bc)
 
-Return a message if `bc` targets an undeclared field, a trace that the weak form does not
-produce, or (for a natural condition) a trace its quantity is not conjugate to, or if an
-essential condition cannot be imposed by the field's interpolation.
+Return a message if `bc` targets an undeclared field; acts on a kind of region it cannot
+act on; targets a trace that the weak form does not produce; pairs a quantity with a trace
+it is not conjugate to; cannot be imposed by the field's interpolation; selects components
+badly; has a value of the wrong shape; depends on the current position without being a
+follower load; or (for a Robin condition) has no flux for its field.
 """
 function verification_boundary_condition(problem::Problem, bc::AbstractBoundaryCondition)
     messages = String[]
+    location = "on $(region_label(bc_region(bc)))"
 
     # The condition's field must be declared.
     if field_by_name(problem, bc_field(bc)) === nothing
@@ -556,13 +647,20 @@ function verification_boundary_condition(problem::Problem, bc::AbstractBoundaryC
         return messages
     end
 
-    # The trace must be one that the weak form actually produces for this field.
+    # The condition must act on a kind of region that can carry it.
+    issue = region_issue(bc)
+    if issue !== nothing
+        push!(messages, "boundary condition on field $(bc_field(bc)): " * issue)
+    end
+
+    # The trace must be one that the weak form actually produces for this field; values at
+    # points or along edges are discrete, and are not traces of the weak form.
     derived = derived_traces(problem, target_name)
-    if !(trace in derived)
+    if !is_discrete_condition(bc) && !(trace in derived)
         available = isempty(derived) ? "none" : join(string.(derived), ", ")
         push!(
             messages,
-            "trace $trace of field $target_name on $(bc_boundary(bc)) does not appear in " *
+            "trace $trace of field $target_name $location does not appear in " *
                 "the weak form (derived traces: $available)",
         )
     end
@@ -586,7 +684,131 @@ function verification_boundary_condition(problem::Problem, bc::AbstractBoundaryC
             )
         end
     end
+
+    # The components, the value and its dependencies are checked against the field.
+    append!(messages, verification_condition_value(bc, target, location))
     return messages
+end
+
+
+"""
+    verification_condition_value(bc, target, location)
+
+Return a message for every badly formed component selection of `bc`, every value of the
+wrong shape for the field `target`, a dependence on the current position by anything but
+a follower load, and (for a Robin condition) a field without a Robin flux or a measure
+that is not a boundary measure. `location` names the region in the messages.
+"""
+function verification_condition_value(
+    bc::AbstractBoundaryCondition,
+    target::Field,
+    location::String,
+)
+    messages = String[]
+    label = "$(condition_label(bc)) on field $(bc_field(bc)) $location"
+    components = bc_components(bc)
+    full_shape = full_value_shape(bc, field_shape(target))
+
+    # A selection must be well formed, and a scalar has no components to select.
+    for issue in selection_issues(components)
+        push!(messages, "$label $issue")
+    end
+    if full_shape isa ScalarValue && !selects_all(components)
+        push!(messages, "$label selects components of a scalar")
+    end
+
+    # The value (or the reference value of a Robin condition) must have the right shape.
+    shape = selected_shape(full_shape, components)
+    for issue in prescription_shape_issues(bc_value(bc), shape)
+        push!(messages, "value of $label $issue")
+    end
+
+    # Only a follower load may depend on the current position.
+    is_follower = bc isa NaturalBC && is_follower_quantity(bc_quantity(bc))
+    if depends_on_current_position(bc_value(bc)) && !is_follower
+        push!(
+            messages,
+            "value of $label depends on the current position, which only a follower " *
+                "load (a quantity per unit current area) may",
+        )
+    end
+
+    # A Robin condition needs a flux for its field, and a boundary measure.
+    if bc isa RobinBC
+        if robin_quantity(field_shape(target), configuration(bc.measure)) === nothing
+            push!(messages, "$label has no Robin flux for a field of its shape")
+        end
+        if !(bc.measure isa AbstractBoundaryMeasure)
+            push!(messages, "$label is integrated over $(bc.measure), not a boundary")
+        end
+    end
+    return messages
+end
+
+
+"""
+    verification_conflicts(problem, conditions)
+
+Return a message for every pair of claims (by `conditions`, or by boundary terms written in
+the equations) on overlapping components of the same trace on the same region that cannot
+both hold: anything together with an essential condition, two natural conditions, or two
+Robin conditions. A natural condition, a Robin condition and boundary terms may share
+components, since they are all boundary integrals and their sum is explicit.
+"""
+function verification_conflicts(problem::Problem, conditions)
+    messages = String[]
+    claims = trace_claims(problem, conditions; include_discrete=true)
+    for i in eachindex(claims), j in eachindex(claims)
+        a = claims[i]
+        b = claims[j]
+
+        # Each pair is considered once, and only on the same trace of the same region.
+        if j <= i || a.region != b.region || a.field !== b.field || a.trace != b.trace
+            continue
+        end
+        if !overlaps(a.components, b.components) || !claims_conflict(a, b)
+            continue
+        end
+        push!(
+            messages,
+            "trace $(a.trace) of field $(a.field) on $(region_label(a.region)) is " *
+                "claimed by both $(claim_label(a)) and $(claim_label(b))",
+        )
+    end
+    return messages
+end
+
+
+"""
+    claims_conflict(a, b)
+
+Return `true` when the claims `a` and `b` on the same components cannot both hold.
+"""
+function claims_conflict(a::TraceClaim, b::TraceClaim)
+    # An essential condition fixes the trace, so nothing else can claim it.
+    if a.status isa PrescribedTrace || b.status isa PrescribedTrace
+        return true
+    end
+
+    # Two conditions of the same natural kind would be silently superposed.
+    both_natural = a.source isa NaturalBC && b.source isa NaturalBC
+    both_robin = a.source isa RobinBC && b.source isa RobinBC
+    return both_natural || both_robin
+end
+
+
+"""
+    claim_label(claim)
+
+Return a description of what makes `claim`, for messages.
+"""
+function claim_label(claim::TraceClaim)
+    label = if claim.source isa AbstractBoundaryCondition
+        condition_label(claim.source)
+    else
+        "a boundary term"
+    end
+    return label * selection_label(claim.components)
 end
 
 
@@ -616,6 +838,79 @@ end
 
 
 # ---------------------------------------------------------------------------------------- #
+# ------------------------------ Rule 10: dependence on unknowns ------------------------- #
+# ---------------------------------------------------------------------------------------- #
+
+"""
+    verification_dependence(problem)
+
+Rule 10: return a message for every equation whose residual depends on none of the
+unknowns, naming the laws whose dependency declarations should be checked.
+
+Such an equation contributes empty rows to the tangent, so the system is singular whatever
+the formulation. Saddle points are unaffected: the incompressibility equation tested by
+``δp`` has a zero diagonal block, but still depends on ``u``.
+"""
+function verification_dependence(problem::Problem)
+    messages = String[]
+    assumption = kinematic_assumption(problem)
+    unknowns = field_names(problem)
+
+    for equation in problem.equations
+        name = equation_name(equation)
+
+        # An undeclared test field has already been reported by rule 2, and a flux without
+        # a tag (an undeclared field or an unknown output) by rules 1, 3 or 6, so we do
+        # not repeat them as a missing dependence.
+        if field_by_name(problem, test_field(equation)) === nothing
+            continue
+        end
+        untagged = term -> quantity(term_flux(term), problem.fields) === nothing
+        if any(untagged, equation_terms(equation))
+            continue
+        end
+
+        # An equation without terms has nothing to depend on.
+        terms = equation_terms(equation)
+        if isempty(terms)
+            push!(
+                messages,
+                "equation $name has no terms, so its rows of the tangent are empty",
+            )
+            continue
+        end
+
+        # We gather every unknown the equation's terms depend on, and the laws they use.
+        dependencies = Symbol[]
+        laws = Symbol[]
+        for term in terms
+            for field in term_dependencies(term, assumption)
+                push_unique!(dependencies, field)
+            end
+            for binding in collect_constitutive(term_flux(term))
+                push_unique!(laws, law_name(binding.law))
+            end
+        end
+
+        # Undeclared fields were reported by rule 1, so only declared ones count here.
+        if !any(field -> field in unknowns, dependencies)
+            hint = if isempty(laws)
+                ""
+            else
+                "; check the dependency declarations of " * join(string.(laws), ", ")
+            end
+            push!(
+                messages,
+                "equation $name does not depend on any unknown, so its rows of the " *
+                    "tangent are empty" * hint,
+            )
+        end
+    end
+    return messages
+end
+
+
+# ---------------------------------------------------------------------------------------- #
 # ------------------------------------- Explanation -------------------------------------- #
 # ---------------------------------------------------------------------------------------- #
 
@@ -623,7 +918,8 @@ end
     explain(problem)
 
 Return a human-readable summary of `problem`: its kinematic assumption, fields, equations,
-laws, whether it is linear, and the status of every derived boundary trace.
+laws, whether it is linear, and, phase by phase, the status of every derived boundary trace
+and the discrete conditions (at points and along edges).
 """
 function explain(problem::Problem)
     lines = String["Problem under $(kinematic_assumption(problem))"]
@@ -645,14 +941,52 @@ function explain(problem::Problem)
     push!(lines, "  laws: " * (isempty(law_names) ? "none" : join(law_names, ", ")))
     push!(lines, "  linear (inferred): $(is_affine(problem))")
 
-    # The status of every derived trace on every named boundary.
-    push!(lines, "  boundary traces:")
-    for status in boundary_status(problem)
-        push!(
-            lines,
-            "    $(status.boundary): $(status.field) $(status.trace) — " *
-                "$(nameof(typeof(status.status)))",
-        )
+    # The status of every derived trace on every named region, phase by phase.
+    phases = problem_phases(problem)
+    for (index, phase) in enumerate(phases)
+        indent = "  "
+        if length(phases) > 1
+            push!(lines, "  phase $(phase_name(phase)) (until $(phase.until)):")
+            indent = "    "
+        end
+        append!(lines, explain_phase(problem, index, indent))
     end
     return join(lines, "\n")
+end
+
+
+"""
+    explain_phase(problem, phase, indent)
+
+Return the lines of [`explain`](@ref) for the phase `phase`: the status of every derived
+trace, and the discrete conditions, indented by `indent`.
+"""
+function explain_phase(problem::Problem, phase, indent::String)
+    lines = String[]
+
+    # Every derived trace, component by component.
+    push!(lines, indent * "boundary traces:")
+    for status in boundary_status(problem, phase)
+        push!(
+            lines,
+            indent *
+            "  $(region_label(status.region)): $(status.field) $(status.trace)" *
+            "$(selection_label(status.components)) — $(status_label(status.status))",
+        )
+    end
+
+    # Conditions at points and along edges are not traces, so they are listed apart.
+    discrete = filter(is_discrete_condition, phase_conditions(problem, phase))
+    if !isempty(discrete)
+        push!(lines, indent * "discrete conditions:")
+        for bc in discrete
+            push!(
+                lines,
+                indent *
+                "  $(region_label(bc_region(bc))): $(bc_field(bc)) $(bc_trace(bc))" *
+                "$(selection_label(bc_components(bc))) — Prescribed",
+            )
+        end
+    end
+    return lines
 end

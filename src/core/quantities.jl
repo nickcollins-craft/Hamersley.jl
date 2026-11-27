@@ -338,6 +338,27 @@ the flux test function.
 struct BoundaryPressure <: AbstractBoundaryQuantity end
 
 
+"""
+    ReferencePressure()
+
+A pressure ``p`` acting along the reference normal, ``t_0 = -p \\, n_0`` per unit reference
+area: a dead load, which neither turns with the boundary nor follows its area.
+"""
+struct ReferencePressure <: AbstractBoundaryQuantity end
+
+
+"""
+    SpatialPressure()
+
+A pressure ``p`` acting along the current normal, ``t = -p \\, n`` per unit current area:
+the most common follower load (a fluid or confining pressure on a deforming body). Under
+finite strains it is pulled back with Nanson's formula, ``-p \\, J F^{-T} n_0`` per unit
+reference area, so it depends on the deformation; under small strains it is a
+[`ReferencePressure`](@ref).
+"""
+struct SpatialPressure <: AbstractBoundaryQuantity end
+
+
 # ---------------------------------------------------------------------------------------- #
 # -------------------------------------- Time rates -------------------------------------- #
 # ---------------------------------------------------------------------------------------- #
@@ -364,24 +385,6 @@ Return the tag underneath any number of [`RateOf`](@ref) wrappers.
 """
 strip_rate(tag::AbstractQuantity) = tag
 strip_rate(tag::RateOf) = strip_rate(tag.quantity)
-
-
-# ---------------------------------------------------------------------------------------- #
-# ---------------------------------- Placeholder values ---------------------------------- #
-# ---------------------------------------------------------------------------------------- #
-
-"""
-    PlaceholderValue(name)
-
-A named stand-in for a prescribed value (for example the boundary temperature
-``\\bar{T}``) while the representation of prescribed values is not yet settled.
-
-# Fields
-- `name::Symbol`: the symbol of the prescribed value.
-"""
-struct PlaceholderValue
-    name::Symbol
-end
 
 
 # ---------------------------------------------------------------------------------------- #
@@ -423,6 +426,8 @@ quantity_configuration(::EdgeForce) = ReferenceConfiguration()
 quantity_configuration(::ReferenceNormalFlux) = ReferenceConfiguration()
 quantity_configuration(::SpatialNormalFlux) = CurrentConfiguration()
 quantity_configuration(::BoundaryPressure) = ConfigurationIndependent()
+quantity_configuration(::ReferencePressure) = ReferenceConfiguration()
+quantity_configuration(::SpatialPressure) = CurrentConfiguration()
 quantity_configuration(tag::RateOf) = quantity_configuration(tag.quantity)
 
 # Tags take part in the generic configuration bookkeeping of `configurations.jl`.
@@ -513,6 +518,7 @@ transformation_rule(::SpatialVolumeDensity) = VolumeDensityRule()
 transformation_rule(::ReferenceVolumeDensity) = VolumeDensityRule()
 transformation_rule(::SpatialTraction) = NansonRule()
 transformation_rule(::SpatialNormalFlux) = NansonRule()
+transformation_rule(::SpatialPressure) = NansonRule()
 
 
 """
@@ -530,6 +536,7 @@ pulled_back(::SpatialGradient{S}) where {S} = MaterialGradient{S}()
 pulled_back(::SpatialVolumeDensity{S}) where {S} = ReferenceVolumeDensity{S}()
 pulled_back(::SpatialTraction) = ReferenceTraction()
 pulled_back(::SpatialNormalFlux) = ReferenceNormalFlux()
+pulled_back(::SpatialPressure) = ReferenceTraction()
 pulled_back(tag::AbstractFieldValue) = tag
 pulled_back(tag::JacobianDeterminant) = tag
 pulled_back(tag::RateOf) = rate_of(pulled_back(tag.quantity))
@@ -548,6 +555,7 @@ pushed_forward(::MaterialGradient{S}) where {S} = SpatialGradient{S}()
 pushed_forward(::ReferenceVolumeDensity{S}) where {S} = SpatialVolumeDensity{S}()
 pushed_forward(::ReferenceTraction) = SpatialTraction()
 pushed_forward(::ReferenceNormalFlux) = SpatialNormalFlux()
+pushed_forward(::ReferencePressure) = SpatialTraction()
 pushed_forward(tag::AbstractFieldValue) = tag
 pushed_forward(tag::JacobianDeterminant) = tag
 pushed_forward(tag::RateOf) = rate_of(pushed_forward(tag.quantity))
@@ -588,6 +596,7 @@ canonical_quantity(::SmallStrain, ::SpatialVolumeDensity{S}) where {S} =
     ReferenceVolumeDensity{S}()
 canonical_quantity(::SmallStrain, ::SpatialTraction) = ReferenceTraction()
 canonical_quantity(::SmallStrain, ::SpatialNormalFlux) = ReferenceNormalFlux()
+canonical_quantity(::SmallStrain, ::SpatialPressure) = ReferencePressure()
 canonical_quantity(assumption::SmallStrain, tag::RateOf) =
     RateOf(canonical_quantity(assumption, tag.quantity))
 
@@ -601,6 +610,17 @@ the infinitesimal strain.
 requires_small_strain(::AbstractQuantity) = false
 requires_small_strain(::InfinitesimalStrainTensor) = true
 requires_small_strain(tag::RateOf) = requires_small_strain(tag.quantity)
+
+
+"""
+    is_follower_quantity(tag)
+
+Return `true` when the boundary quantity tagged `tag` is measured per unit current area,
+so that under finite strains it follows the deformation: its pull-back (by Nanson's
+formula) depends on the motion.
+"""
+is_follower_quantity(tag::AbstractBoundaryQuantity) =
+    quantity_configuration(tag) isa CurrentConfiguration
 
 
 # ---------------------------------------------------------------------------------------- #
@@ -653,6 +673,15 @@ is_conjugate_pair(::AbstractFieldValue{S}, ::SpatialVolumeDensity{S}) where {S} 
 is_conjugate_pair(::AbstractFieldValue{ScalarField}, ::MaterialDivergence) = true
 is_conjugate_pair(::AbstractFieldValue{ScalarField}, ::JacobianDeterminant) = true
 is_conjugate_pair(::MaterialFlux, ::MaterialGradient{ScalarField}) = true
+
+# Values against boundary loads, in the boundary terms that natural and Robin conditions
+# become: δu · t, δu · (-p n), δT q_n.
+is_conjugate_pair(::AbstractFieldValue{VectorField}, ::ReferenceTraction) = true
+is_conjugate_pair(::AbstractFieldValue{VectorField}, ::SpatialTraction) = true
+is_conjugate_pair(::AbstractFieldValue{VectorField}, ::ReferencePressure) = true
+is_conjugate_pair(::AbstractFieldValue{VectorField}, ::SpatialPressure) = true
+is_conjugate_pair(::AbstractFieldValue{ScalarField}, ::ReferenceNormalFlux) = true
+is_conjugate_pair(::AbstractFieldValue{ScalarField}, ::SpatialNormalFlux) = true
 
 # Interpolated scalar values against each other, as in penalty or compliance terms δp p/κ.
 is_conjugate_pair(::AbstractFieldValue{ScalarField}, ::AbstractFieldValue{ScalarField}) =

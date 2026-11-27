@@ -77,6 +77,8 @@ conjugate_trace(::SpatialNormalFlux) = ValueTrace()
 conjugate_trace(::DoubleForce) = NormalGradientTrace()
 conjugate_trace(::EdgeForce) = EdgeValueTrace()
 conjugate_trace(::BoundaryPressure) = NormalComponentTrace()
+conjugate_trace(::ReferencePressure) = ValueTrace()
+conjugate_trace(::SpatialPressure) = ValueTrace()
 
 
 """

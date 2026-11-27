@@ -32,7 +32,9 @@ infer their trace, of strict boundary checking, and of the report given by `expl
                     ),
                 ),
             ),
-            boundary_conditions=(NaturalBC(:u; on=:top, quantity=DoubleForce()),),
+            boundary_conditions=(
+                NaturalBC(:u; on=:top, quantity=DoubleForce(), value=(0.0, 1.0)),
+            ),
             kinematics=SmallStrain(),
         )
         @test Hamersley.derived_traces(second_gradient, :u) ==
@@ -46,7 +48,7 @@ infer their trace, of strict boundary checking, and of the report given by `expl
             fields=second_gradient.fields,
             equations=second_gradient.equations,
             boundary_conditions=(
-                EssentialBC(:u; on=:bottom, value=PlaceholderValue(:u_bar)),
+                EssentialBC(:u; on=:bottom, value=(0.0, 0.0)),
             ),
             kinematics=SmallStrain(),
             strict_boundaries=true,
@@ -62,7 +64,9 @@ infer their trace, of strict boundary checking, and of the report given by `expl
         problem = Problem(;
             fields=base.fields,
             equations=base.equations,
-            boundary_conditions=(NaturalBC(:u; on=:top, quantity=DoubleForce()),),
+            boundary_conditions=(
+                NaturalBC(:u; on=:top, quantity=DoubleForce(), value=(0.0, 1.0)),
+            ),
             kinematics=SmallStrain(),
         )
         messages = Hamersley.issue_messages(verification(problem))
@@ -72,7 +76,7 @@ infer their trace, of strict boundary checking, and of the report given by `expl
         strong_gradient = EssentialBC(
             :u;
             on=:top,
-            value=PlaceholderValue(:g),
+            value=(0.0, 0.0),
             trace=NormalGradientTrace(),
         )
         u = Field(:u, VectorField(), Lagrange, 1)

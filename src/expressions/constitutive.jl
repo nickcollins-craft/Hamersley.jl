@@ -75,21 +75,21 @@ end
     dependency_inputs(vertex)
 
 Return the input vertices that the output `vertex` depends on, according to the law's
-per-output dependencies. Unknown outputs or input slots contribute nothing (the formulation verification
-reports them separately).
+per-output dependencies (see [`declared_dependencies`](@ref), under which an output the
+declaration leaves out depends on every input). Unknown outputs or input slots contribute
+nothing (the formulation verification reports them separately).
 """
 function dependency_inputs(vertex::ConstitutiveOutput)
-    # We look up which input slots this particular output depends on.
+    # An output the law does not have depends on nothing.
     law = constitutive_law(vertex)
-    dependencies = output_dependencies(law)
-    if !haskey(dependencies, vertex.name)
+    if !haskey(law_outputs(law), vertex.name)
         return AbstractVertex[]
     end
 
-    # We keep only the slots that the binding actually supplies.
+    # We keep only the declared slots that the binding actually supplies.
     bound_inputs = vertex.constitutive.inputs
     inputs = AbstractVertex[]
-    for slot in dependencies[vertex.name]
+    for slot in declared_dependencies(law, vertex.name)
         if haskey(bound_inputs, slot)
             push!(inputs, bound_inputs[slot])
         end

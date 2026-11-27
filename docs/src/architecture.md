@@ -168,6 +168,13 @@ changing essential values only changes the right-hand side of the problem, so fa
 can be reused without issue in this case. Kernels can assemble the residual only, the
 tangent only, or both.
 
+A claim of `linear = false` is always honoured and selects Newton's method, since Newton on
+an affine residual converges in one iteration; only `linear = true` needs checking. It is
+possible for a problem to be both affine and also have internal state variables, for example
+a linear Maxwell model is affine, but its stress history must still be updated and committed
+every step, so the cached-factorisation strategy evaluates the constitutive laws once more
+at the solution whenever any constitutive law carries internal state.
+
 ## Dependencies
 
 - Ferrite, Tensors, LinearAlgebra and SparseArrays are core dependencies.

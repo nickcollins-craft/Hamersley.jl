@@ -4,7 +4,8 @@ Ferrite.
 
 The package is organised in layers, each of which only uses the ones above it:
 
-- `core/`: the vocabulary (configurations, kinematic assumptions, quantity tags, traces);
+- `core/`: the vocabulary (configurations, kinematic assumptions, quantity tags, traces,
+  regions and prescribed values);
 - `materials/`: the constitutive law interface and the material library;
 - `expressions/`: the dataflow graph of a formulation (fields, operators, kinematics,
   pull-backs, constitutive bindings);
@@ -27,13 +28,16 @@ using LinearAlgebra
 using SparseArrays
 using Tensors
 
-# The vocabulary: errors, configurations, kinematic assumptions, quantity tags and traces.
+# The vocabulary: errors, configurations, kinematic assumptions, quantity tags, traces,
+# regions and prescribed values.
 include("core/errors.jl")
 include("core/configurations.jl")
 include("core/kinematic_assumptions.jl")
 include("core/field_shapes.jl")
 include("core/quantities.jl")
 include("core/traces.jl")
+include("core/regions.jl")
+include("core/prescriptions.jl")
 
 # Constitutive laws only refer to quantity tags, so they come before the graph.
 include("materials/interface.jl")
@@ -48,14 +52,17 @@ include("expressions/vertices.jl")
 include("expressions/kinematics.jl")
 include("expressions/transforms.jl")
 include("expressions/constitutive.jl")
+include("expressions/boundary_vertices.jl")
 include("expressions/traversal.jl")
 
 # Weak forms, problems and the formulation verification.
 include("formulation/terms.jl")
 include("formulation/equations.jl")
 include("formulation/boundary_conditions.jl")
+include("formulation/schedules.jl")
 include("formulation/templates.jl")
 include("formulation/problems.jl")
+include("formulation/condition_terms.jl")
 include("formulation/trace_derivation.jl")
 include("formulation/verification.jl")
 

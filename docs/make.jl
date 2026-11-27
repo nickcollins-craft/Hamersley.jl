@@ -25,6 +25,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Architecture" => "architecture.md",
+        "Boundary conditions (design)" => "boundary_conditions.md",
     ],
 )
 

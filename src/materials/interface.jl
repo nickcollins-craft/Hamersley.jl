@@ -17,7 +17,10 @@ Three design decisions are fixed here, ahead of the numerics:
    outputs; the outputs alone determine the residual, and so the solution.
 2. A law declares, per output, which inputs it depends on. This is what the global
    sparsity pattern and the off-diagonal blocks of a multiphysics tangent are built from.
-   The tangent a law returns may be sparser than this declaration, but not denser.
+   The tangent a law returns may be sparser than this declaration, but not denser. An
+   output the declaration leaves out therefore depends on every input (declaring too much
+   costs only sparsity, while declaring too little would silently drop tangent entries);
+   only an explicit empty tuple says that an output depends on no input.
 3. A law whose tangent is symmetric says so, so that the corresponding block of the global
    system can be treated as symmetric. This holds for any law deriving from a potential
    ``Ψ`` (whose tangent is a Hessian), but also for a law returning a symmetrised tangent.
@@ -68,6 +71,10 @@ function law_outputs end
 Return a named tuple mapping each output of `law` to a tuple of the input slots it
 depends on. By default every output depends on every input; a law overrides this to
 expose structural zeros in its tangent.
+
+An override need not mention every output: one it leaves out depends on every input, and
+`()` declares an output that depends on no input. Consumers read the declaration through
+[`declared_dependencies`](@ref), which applies that rule.
 """
 function output_dependencies(law::AbstractLaw)
     # Every output depends on every input unless the law says otherwise.
@@ -79,11 +86,48 @@ end
 
 
 """
+    declared_dependencies(law, output_name)
+
+Return a tuple of the input slots that the output `output_name` of `law` depends on.
+
+An output that [`output_dependencies`](@ref) leaves out depends on every input, so that a
+forgotten entry costs sparsity rather than correctness (the tangent a law returns may be
+sparser than its declaration, but never denser). Only an explicit empty tuple declares an
+output that depends on no input.
+"""
+function declared_dependencies(law::AbstractLaw, output_name::Symbol)
+    # An explicit declaration, even an empty one, is taken at its word.
+    dependencies = output_dependencies(law)
+    if haskey(dependencies, output_name)
+        return Tuple(dependencies[output_name])
+    end
+
+    # A missing one falls back to the conservative default: every input.
+    all_inputs = Tuple(keys(law_inputs(law)))
+    return all_inputs
+end
+
+
+"""
     is_affine(law)
 
-Return `true` when every output of `law` is an affine function of its inputs (with
-constant coefficients), so that its tangent never changes. Laws are assumed nonlinear
-unless they say otherwise.
+Return `true` when every output of `law` is an affine function of its current-step
+inputs whose slope (the tangent) depends only on the material parameters and the time
+step, never on the inputs or the internal state. Laws are assumed nonlinear unless they
+say otherwise.
+
+The old internal state may enter the constant part. Linear Maxwell viscoelasticity under
+backward Euler,
+
+```math
+σ_{n+1} = \\frac{τ}{τ + Δt} \\left( σ_n + C : (ε_{n+1} - ε_n) \\right),
+```
+
+is affine: its slope ``τ C/(τ + Δt)`` changes only with ``Δt``, which the
+[`FactorisationKey`](@ref) records. A law whose tangent depends on its state (damage,
+ageing, or a state-dependent viscosity) is not, even though it is affine in its inputs at
+any one state: a cached factorisation would go stale as the state evolves, and the key
+does not see the state. Nonlinear viscosity (a Norton power law, say) is not affine either.
 """
 is_affine(::AbstractLaw) = false
 

@@ -29,11 +29,14 @@ export CauchyStress, KirchhoffStress, FirstPiolaStress, SecondPiolaStress, Hyper
 export MaterialFlux, SpatialFlux, ReferenceVolumeDensity, SpatialVolumeDensity
 export ReferenceTraction, SpatialTraction, DoubleForce, EdgeForce
 export ReferenceNormalFlux, SpatialNormalFlux, BoundaryPressure
-export PlaceholderValue
+export ReferencePressure, SpatialPressure
+export RateOf
 
-# Traces.
+# Traces, regions and prescribed values.
 export ValueTrace, NormalGradientTrace, NormalComponentTrace, TangentialComponentTrace
 export EdgeValueTrace
+export FacetSet, EdgeSet, VertexSet
+export Constant, Prescribed, Tabulated
 
 # Constitutive laws.
 export PlaceholderLaw, IsotropicLinearElasticity, NeoHookean
@@ -46,7 +49,8 @@ export PullBack, PushForward
 export Constitutive, output
 
 # Formulation.
-export Term, Equation, EssentialBC, NaturalBC, Problem
+export Term, Equation, EssentialBC, NaturalBC, RobinBC, Problem
+export Phase, Schedule, AtTime, Never, Release
 export verification, passed, explain
 
 # Time integration and solution strategies.

@@ -23,30 +23,19 @@ function coupling_matrix(problem::Problem)
     coupling = falses(number_of_fields, number_of_fields)
     assumption = kinematic_assumption(problem)
 
-    # Every term couples its test field to every field its flux depends on.
+    # Every term couples its test field to every field its flux and measure depend on, and
+    # to those of its test side when its variation depends on the solution. The terms
+    # include those that boundary conditions become in every phase, so that the pattern
+    # is built once for the whole analysis, and a follower load couples its field to the
+    # motion through its measure.
     for (equation, term) in problem_terms(problem)
         row = findfirst(==(test_field(equation)), names)
         if row === nothing
             continue
         end
-        mark_dependencies!(coupling, row, vertex_fields(term_flux(term), assumption), names)
-
-        # The test side only adds dependencies when its variation depends on the solution
-        # (δE = sym(Fᵀ ∇_0 δu) does; δp and δF = ∇_0 δu do not).
-        test = term_test(term)
-        if !is_affine(test, assumption)
-            mark_dependencies!(coupling, row, vertex_fields(test, assumption), names)
-        end
+        mark_dependencies!(coupling, row, term_dependencies(term, assumption), names)
     end
 
-    # Follower loads couple the loaded field to the motion.
-    motion = motion_field(assumption)
-    for bc in problem.boundary_conditions
-        row = findfirst(==(bc_field(bc)), names)
-        if row !== nothing && motion !== nothing && is_follower_load(bc, assumption)
-            mark_dependencies!(coupling, row, [motion], names)
-        end
-    end
     return Matrix{Bool}(coupling)
 end
 

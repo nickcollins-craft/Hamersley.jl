@@ -170,6 +170,70 @@ has_issue(report, fragment) = any(contains(fragment), Hamersley.issue_messages(r
         @test has_issue(verification(problem), "please choose from: P")
     end
 
+    @testset "Dependence on unknowns" begin
+        # A law whose stress output is declared to depend on no input leaves the momentum
+        # equation without any unknown, so its rows of the tangent would be empty.
+        function momentum_with(dependencies)
+            mechanics = Constitutive(
+                PlaceholderLaw(
+                    :hyperelastic;
+                    inputs=(F=DeformationGradientTensor(),),
+                    outputs=(P=FirstPiolaStress(),),
+                    dependencies=dependencies,
+                ),
+                (F=F,),
+            )
+            problem = Problem(;
+                fields=(u,),
+                equations=(
+                    Equation(
+                        :momentum,
+                        :u,
+                        Term(Variation(F), output(mechanics, :P), ReferenceVolume()),
+                    ),
+                ),
+                kinematics=finite,
+            )
+            return problem
+        end
+        @test has_issue(
+            verification(momentum_with((P=(),))),
+            "check the dependency declarations of hyperelastic",
+        )
+
+        # Leaving the output out of the declaration falls back to every input.
+        undeclared_output = momentum_with(NamedTuple())
+        @test passed(verification(undeclared_output))
+        @test Hamersley.coupling_matrix(undeclared_output) == reshape([true], 1, 1)
+
+        # An equation without terms is reported too.
+        empty = Problem(;
+            fields=(u,),
+            equations=(Equation(:momentum, :u),),
+            kinematics=finite,
+        )
+        @test has_issue(verification(empty), "equation momentum has no terms")
+
+        # An unknown output is reported once, by rule 6, and not again as a missing
+        # dependence.
+        neo_hookean = Constitutive(
+            NeoHookean(shear_modulus=1.0, first_lame_parameter=2.0),
+            (F=F,),
+        )
+        unknown_output = Problem(;
+            fields=(u,),
+            equations=(
+                Equation(
+                    :momentum,
+                    :u,
+                    Term(Variation(F), output(neo_hookean, :S), ReferenceVolume()),
+                ),
+            ),
+            kinematics=finite,
+        )
+        @test !has_issue(verification(unknown_output), "does not depend on any unknown")
+    end
+
     @testset "Throwing on error" begin
         problem = Problem(; fields=(u,), kinematics=FiniteStrain(motion=:v))
         @test_throws ArgumentError verification(problem; throw_on_error=true)

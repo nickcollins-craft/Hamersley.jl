@@ -97,18 +97,46 @@ end
 
 """
     default_strategy(problem; relative_tolerance, absolute_tolerance, maximum_iterations)
+    default_strategy(problem, phase; relative_tolerance, absolute_tolerance,
+                     maximum_iterations)
 
-Return the default solver strategy for `problem`: a cached factorisation if its residual
-is affine, and full Newton otherwise.
+Return the default solver strategy for `problem` (in every phase, or in the one phase
+`phase`, a name or a position): a cached factorisation if its residual is affine, and full
+Newton otherwise, or whenever the problem is declared `linear = false`. Choosing per phase
+lets a phase without follower loads keep a cached factorisation; a change of phase
+refreshes the factorisation in any case, since it changes the constrained set.
+
+The two claims a user can make are treated differently. `linear = true` could be wrong, so
+the formulation verification checks it against the structure. `linear = false` is always
+safe, since Newton's method on an affine residual converges in one iteration, so it is
+honoured without question: it is the way to opt out of the cached factorisation (for
+example to keep a convergence check while debugging a law that declares itself affine).
 """
-function default_strategy(
-    problem::Problem;
+default_strategy(problem::Problem; tolerances...) =
+    strategy_for(problem, is_affine(problem); tolerances...)
+
+default_strategy(problem::Problem, phase; tolerances...) =
+    strategy_for(problem, is_affine(problem, phase); tolerances...)
+
+
+"""
+    strategy_for(problem, affine; relative_tolerance, absolute_tolerance,
+                 maximum_iterations)
+
+Return a cached factorisation when `affine` is `true` and `problem` is not declared
+nonlinear, and full Newton with the given tolerances otherwise.
+"""
+function strategy_for(
+    problem::Problem,
+    affine::Bool;
     relative_tolerance::Real=1e-10,
     absolute_tolerance::Real=1e-12,
     maximum_iterations::Integer=25,
 )
-    # The linearity claim has already been checked by the formulation verification, so we can trust it here.
-    if is_affine(problem)
+    # A claim of nonlinearity is an opt-out and always wins; a claim of linearity has been
+    # checked by the formulation verification, so the structure alone decides the rest.
+    use_cached_factorisation = problem.linear !== false && affine
+    if use_cached_factorisation
         return CachedFactorisationStrategy()
     else
         strategy = NewtonStrategy(;

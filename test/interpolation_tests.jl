@@ -48,7 +48,7 @@ grid checks.
             fields=base.fields,
             equations=base.equations,
             boundary_conditions=(
-                NaturalBC(:u; on=:lateral, quantity=ReferenceTraction()),
+                NaturalBC(:u; on=:lateral, quantity=ReferenceTraction(), value=(0.0, 1.0)),
             ),
             kinematics=SmallStrain(),
         )

@@ -30,6 +30,24 @@ Tests of the constitutive law interface and the library declarations.
         )
         @test Hamersley.output_dependencies(law) == (P=(:F, :T),)
         @test Hamersley.law_name(law) === :coupled
+
+        # An output the declaration leaves out depends on every input, and only an
+        # explicit empty tuple makes it depend on none.
+        partial = PlaceholderLaw(
+            :partial;
+            inputs=(F=DeformationGradientTensor(), T=Temperature()),
+            outputs=(P=FirstPiolaStress(), r=ReferenceVolumeDensity(ScalarField())),
+            dependencies=(r=(:T,),),
+        )
+        @test Hamersley.declared_dependencies(partial, :P) == (:F, :T)
+        @test Hamersley.declared_dependencies(partial, :r) == (:T,)
+        constant = PlaceholderLaw(
+            :constant;
+            inputs=(F=DeformationGradientTensor(),),
+            outputs=(P=FirstPiolaStress(),),
+            dependencies=(P=(),),
+        )
+        @test Hamersley.declared_dependencies(constant, :P) == ()
         @test_throws NotYetImplemented Hamersley.constitutive_update(law, (;), nothing, 1.0)
     end
 

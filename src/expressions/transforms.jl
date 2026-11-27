@@ -138,3 +138,41 @@ Return the rule by which `measure` is mapped onto its reference counterpart:
 measure_transformation_rule(::AbstractMeasure) = nothing
 measure_transformation_rule(::CurrentVolume) = VolumeDensityRule()
 measure_transformation_rule(::CurrentBoundary) = NansonRule()
+
+
+"""
+    measure_fields(measure, assumption)
+
+Return a vector of the names of the fields that `measure` depends on under `assumption`.
+
+A reference measure is fixed, so it depends on nothing. Under [`FiniteStrain`](@ref) a
+current measure is pulled back with a factor that depends on the motion (``J`` for a volume,
+``J F^{-T} n_0`` for an area), so an integral over it depends on the motion even when its
+integrand does not. Under [`SmallStrain`](@ref) the configurations coincide, so no measure
+depends on anything.
+"""
+measure_fields(::AbstractMeasure, ::AbstractKinematicAssumption) = Symbol[]
+
+function measure_fields(measure::AbstractMeasure, assumption::FiniteStrain)
+    # Only a measure that is pulled back with a rule picks up the motion.
+    if measure_transformation_rule(measure) === nothing
+        return Symbol[]
+    else
+        return [motion_field(assumption)]
+    end
+end
+
+
+"""
+    is_affine(measure, assumption)
+
+Return `true` when integrating against `measure` keeps an affine integrand affine under
+`assumption`.
+
+Under [`FiniteStrain`](@ref) a current measure is not: ``∫ δT \\, c T \\, \\mathrm{d}v =
+∫ δT \\, c T J \\, \\mathrm{d}v_0`` is a product of ``T`` and ``J(u)``, and even a constant
+body force per unit current volume gives a residual in ``J(u)``.
+"""
+is_affine(::AbstractMeasure, ::AbstractKinematicAssumption) = true
+is_affine(measure::AbstractMeasure, assumption::FiniteStrain) =
+    isempty(measure_fields(measure, assumption))

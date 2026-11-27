@@ -27,8 +27,8 @@ function small_strain_elasticity(; linear=nothing)
         fields=(u,),
         equations=(momentum,),
         boundary_conditions=(
-            EssentialBC(:u; on=:left, value=PlaceholderValue(:u_bar)),
-            NaturalBC(:u; on=:right, quantity=ReferenceTraction()),
+            EssentialBC(:u; on=:left, value=(0.0, 0.0)),
+            NaturalBC(:u; on=:right, quantity=ReferenceTraction(), value=(1.0, 0.0)),
         ),
         kinematics=SmallStrain(),
         linear=linear,
@@ -92,8 +92,8 @@ function finite_strain_thermomechanics(; traction=ReferenceTraction())
             ),
         ),
         boundary_conditions=(
-            NaturalBC(:u; on=:right, quantity=traction),
-            EssentialBC(:T; on=:left, value=PlaceholderValue(:T_bar)),
+            NaturalBC(:u; on=:right, quantity=traction, value=(1.0, 0.0)),
+            EssentialBC(:T; on=:left, value=293.15),
         ),
         kinematics=FiniteStrain(motion=:u),
     )
